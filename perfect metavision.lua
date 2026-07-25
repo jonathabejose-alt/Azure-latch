@@ -58,13 +58,11 @@ for i = 1, maxCircles do
     circlePool[i] = part
     circleData[i] = {
         spawnTime = 0,
-        active = false,
-        baseTransparency = 1
+        active = false
     }
 end
 
 local function hideAll()
-    local now = tick()
     for i = 1, maxBeams do
         beamPool[i].beam.Transparency = NumberSequence.new(1)
         beamPool[i].active = false
@@ -180,9 +178,6 @@ local function updateMetavision()
                 circlePool[i].Transparency = 1
                 data.active = false
                 data.spawnTime = 0
-            else
-                local progress = elapsed / fadeDuration
-                circlePool[i].Transparency = data.baseTransparency + (1 - data.baseTransparency) * progress
             end
         end
     end
@@ -205,16 +200,7 @@ local function updateMetavision()
                     
                     beamData.attachment0.WorldPosition = lastPoint.Position
                     beamData.attachment1.WorldPosition = point.Position
-                    
-                    local elapsed = currentTick - beamData.spawnTime
-                    local progress = math.min(elapsed / fadeDuration, 1)
-                    local alpha = 0.7 * (1 - progress)
-                    
-                    if point.Age and point.Age < workspace:GetServerTimeNow() then
-                        alpha = alpha * 0.3
-                    end
-                    
-                    beamData.beam.Transparency = NumberSequence.new(math.max(alpha, 0.02))
+                    beamData.beam.Transparency = NumberSequence.new(0.3)
                     beamData.beam.Color = ColorSequence.new(Color3.fromRGB(0, 180, 255))
                 end
             end
@@ -230,13 +216,13 @@ local function updateMetavision()
             if not data.active then
                 data.spawnTime = currentTick
                 data.active = true
-                data.baseTransparency = 0.3
             end
             local p = circlePool[circleIdx]
             p.Shape = Enum.PartType.Ball
             p.Size = Vector3.new(1.5, 1.5, 1.5)
             p.Position = landing.Position
             p.Color = Color3.fromRGB(0, 255, 100)
+            p.Transparency = 0.3
         end
     end
     
@@ -248,13 +234,13 @@ local function updateMetavision()
             if not data.active then
                 data.spawnTime = currentTick
                 data.active = true
-                data.baseTransparency = 0.3
             end
             local p = circlePool[circleIdx]
             p.Shape = Enum.PartType.Ball
             p.Size = Vector3.new(1, 1, 1)
             p.Position = highest.Position
             p.Color = Color3.fromRGB(255, 0, 200)
+            p.Transparency = 0.3
         end
     end
     
@@ -267,7 +253,6 @@ local function updateMetavision()
             if not data.active then
                 data.spawnTime = currentTick
                 data.active = true
-                data.baseTransparency = 0.5
             end
             local p = circlePool[circleIdx]
             p.Shape = Enum.PartType.Block
@@ -279,22 +264,7 @@ local function updateMetavision()
                 p.Color = Color3.fromRGB(0, 255, 200)
                 p.Size = Vector3.new(2, 3, 2)
             end
-        end
-    end
-    
-    local activeCount = circleIdx
-    for i = activeCount + 1, maxCircles do
-        if circleData[i].active then
-            local data = circleData[i]
-            local elapsed = currentTick - data.spawnTime
-            if elapsed >= fadeDuration then
-                circlePool[i].Transparency = 1
-                data.active = false
-                data.spawnTime = 0
-            else
-                local progress = elapsed / fadeDuration
-                circlePool[i].Transparency = data.baseTransparency + (1 - data.baseTransparency) * progress
-            end
+            p.Transparency = 0.5
         end
     end
 end
@@ -344,7 +314,7 @@ local function destroyAll()
     circlePool = nil
     circleData = nil
     
-    print("Metavision completamente destruido")
+    print("Metavision completely destroyed")
 end
 
 query.requestTrajectory:Fire()
@@ -366,4 +336,4 @@ inputConn = UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 notify("Metavision loaded!")
-notify("F5 = ON | F4 = DESTROY")
+notify("F5 = Toggle | F4 = Destroy")
