@@ -160,15 +160,33 @@ local function Skill2(char)
     
     local root = char:WaitForChild("HumanoidRootPart")
     
-    root.CFrame = CFrame.new(ball.Position - Vector3.new(0, 3, 0))
-    task.wait(0.05)
-    remote:FireServer(buffer.fromstring(buffers["grabball"]))
-    
+    local grabbed = false
     local timeout = 0
-    while not HasBall() and timeout < 30 do
+    
+    while not grabbed and timeout < 60 do
+        local currentBall = Workspace.Terrain:FindFirstChild("Ball")
+        if not currentBall then
+            return
+        end
+        
+        local targetPos = currentBall.Position + Vector3.new(0, 2, 0)
+        root.CFrame = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
+        root.AssemblyLinearVelocity = Vector3.zero
+        
         task.wait(0.05)
         remote:FireServer(buffer.fromstring(buffers["grabball"]))
+        task.wait(0.05)
+        
+        if HasBall() then
+            grabbed = true
+            break
+        end
+        
         timeout = timeout + 1
+    end
+    
+    if not grabbed then
+        return
     end
     
     local anim = Instance.new("Animation")
@@ -238,15 +256,33 @@ local function Skill5(char)
     
     local root = char:WaitForChild("HumanoidRootPart")
     
-    root.CFrame = CFrame.new(ball.Position - Vector3.new(0, 3, 0))
-    task.wait(0.05)
-    remote:FireServer(buffer.fromstring(buffers["grabball"]))
-    
+    local grabbed = false
     local timeout = 0
-    while not HasBall() and timeout < 30 do
+    
+    while not grabbed and timeout < 60 do
+        local currentBall = Workspace.Terrain:FindFirstChild("Ball")
+        if not currentBall then
+            return
+        end
+        
+        local targetPos = currentBall.Position + Vector3.new(0, 2, 0)
+        root.CFrame = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
+        root.AssemblyLinearVelocity = Vector3.zero
+        
         task.wait(0.05)
         remote:FireServer(buffer.fromstring(buffers["grabball"]))
+        task.wait(0.05)
+        
+        if HasBall() then
+            grabbed = true
+            break
+        end
+        
         timeout = timeout + 1
+    end
+    
+    if not grabbed then
+        return
     end
     
     local anim = Instance.new("Animation")
