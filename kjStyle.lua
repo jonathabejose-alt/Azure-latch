@@ -1,3 +1,6 @@
+getgenv().HBM = 30 
+
+
 local plr = game.Players.LocalPlayer
 local cam = game.Workspace.CurrentCamera
 local rep = game:GetService("ReplicatedStorage")
@@ -114,44 +117,38 @@ local function UnlimitedFlexworks()
     Debris:AddItem(music, 30)
 
     plr:SetAttribute("style", "KJ")
-    char.state.stun.Value = true
     humanoid.WalkSpeed = 0
-    
-    local bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(0, 350000, 0)
-    bv.Velocity = Vector3.new(0, 50, 0)
-    bv.Parent = root
+    root.Anchored = true
+    root.CFrame = root.CFrame + Vector3.new(0, 30, 0)
 
     pcall(function() humanoid:LoadAnimation(kj.Animation):Play() end)
     pcall(function() require(rep.client.replication).KJUnlimitedFlexworks(char) end)
 
-    task.wait(29)
-    bv:Destroy()
+    task.wait(31)
     
-    local bg = Instance.new("BodyGyro")
-    bg.MaxTorque = Vector3.new(350000, 350000, 350000)
-    bg.CFrame = root.CFrame
-    bg.Parent = root
-
-    local bvDown = Instance.new("BodyVelocity")
-    bvDown.MaxForce = Vector3.new(0, 350000, 0)
-    bvDown.Velocity = Vector3.new(0, -50, 0)
-    bvDown.Parent = root
-    
-    task.wait(1)
-    bvDown:Destroy()
-    bg:Destroy()
+    root.CFrame = root.CFrame - Vector3.new(0, 30, 0)
+    root.Anchored = false
 
     local goal = plr.Team.Name == "A" and workspace.map.Bgoal or workspace.map.Agoal
+    local barriar = plr.Team.Name == "A" and workspace.map.gkbarriar.Bbarriar or workspace.map.gkbarriar.Abarriar
+    
+    if barriar then
+        barriar.CanCollide = false
+    end
     if goal then
-        root.CFrame = goal.CFrame * CFrame.new(0, 0, -3)
+        goal.CanCollide = false
+    end
+    
+    if goal and HasBall() then
+        root.CFrame = goal.CFrame
+        repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
         task.wait(0.2)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 35, false, Vector3.new(0, 1, 0)}})
+        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
     end
 
     humanoid.WalkSpeed = 40
-    char.state.stun.Value = false
 end
+
 
 local function Handball()
     local char = plr.Character
@@ -168,9 +165,10 @@ local function Handball()
     task.delay(0.3, function() remote:FireServer(buffer.fromstring(buffers["base"]), {{"skill2"}}) end)
 end
 
+
 local function Dropkick()
     local char = plr.Character
-    if not char or Stunned() or not HasBall() or IsOnCD("skill3") then return end
+    if not char or Stunned() or IsOnCD("skill3") then return end
     CancelMove()
     DoCD("skill3", 10)
     local humanoid = char.Humanoid
