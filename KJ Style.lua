@@ -1,6 +1,3 @@
-getgenv().HBM = 30 
-
-
 local plr = game.Players.LocalPlayer
 local cam = game.Workspace.CurrentCamera
 local rep = game:GetService("ReplicatedStorage")
