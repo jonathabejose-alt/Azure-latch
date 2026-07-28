@@ -17,6 +17,11 @@ local soundUtil = require(rep.util.soundUtil)
 local stopped = false
 local buffers = {}
 
+if getgenv().HBM == nil then getgenv().HBM = false end
+if type(getgenv().HBM) == "number" then
+    getgenv().HBM = math.clamp(getgenv().HBM, 5, 80)
+end
+
 loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
 repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
 for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
@@ -43,7 +48,6 @@ for _, v in pairs(kjPreload:GetDescendants()) do
     end
 end
 
-print("KJ Preload creado")
 
 local function HasBall()
     return plr.Character and plr.Character:FindFirstChild("Ball")
@@ -111,33 +115,42 @@ local function UnlimitedFlexworks()
 
     plr:SetAttribute("style", "KJ")
     char.state.stun.Value = true
-    humanoid.HipHeight = 15
     humanoid.WalkSpeed = 0
-    root.CFrame = root.CFrame + Vector3.new(0, 20, 0)
-    root.Anchored = true
+    
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(0, 350000, 0)
+    bv.Velocity = Vector3.new(0, 50, 0)
+    bv.Parent = root
 
     pcall(function() humanoid:LoadAnimation(kj.Animation):Play() end)
     pcall(function() require(rep.client.replication).KJUnlimitedFlexworks(char) end)
 
     task.wait(29)
+    bv:Destroy()
     
-    task.wait(1.2)
-    root.Anchored = false
-    root.CFrame = root.CFrame - Vector3.new(0, 20, 0)
+    local bg = Instance.new("BodyGyro")
+    bg.MaxTorque = Vector3.new(350000, 350000, 350000)
+    bg.CFrame = root.CFrame
+    bg.Parent = root
+
+    local bvDown = Instance.new("BodyVelocity")
+    bvDown.MaxForce = Vector3.new(0, 350000, 0)
+    bvDown.Velocity = Vector3.new(0, -50, 0)
+    bvDown.Parent = root
     
-    task.wait(0.5)
+    task.wait(1)
+    bvDown:Destroy()
+    bg:Destroy()
+
     local goal = plr.Team.Name == "A" and workspace.map.Bgoal or workspace.map.Agoal
     if goal then
-        root.CFrame = goal.CFrame
-        task.wait(0.185)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 100, true, vector.create(0, 1, 0)}})
+        root.CFrame = goal.CFrame * CFrame.new(0, 0, -3)
+        task.wait(0.2)
+        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 35, false, Vector3.new(0, 1, 0)}})
     end
-    
-    task.delay(0.35, function()
-        humanoid.WalkSpeed = 40
-        humanoid.HipHeight = 0
-        char.state.stun.Value = false
-    end)
+
+    humanoid.WalkSpeed = 40
+    char.state.stun.Value = false
 end
 
 local function Handball()
@@ -184,41 +197,58 @@ local function StoicBomb()
     if dist > 1050 then return end
 
     CancelMove()
-    DoCD("skill4", 15)
+    DoCD("skill4", 0.8)
 
     local humanoid = char.Humanoid
     local originalCF = root.CFrame
-    local grabbed = false
-    local timeout = 0
-    local maxTimeout = 300
+    local grabbedByHBM = false
 
-    while not grabbed and timeout < maxTimeout do
-        local currentBall = workspace.Terrain:FindFirstChild("Ball")
-        if not currentBall then
+    if getgenv().HBM and type(getgenv().HBM) == "number" then
+        local hbmSize = getgenv().HBM
+        if dist <= hbmSize then
+            remote:FireServer(buffer.fromstring(buffers["grabball"]))
+            task.wait(0.15)
+            if HasBall() then
+                grabbedByHBM = true
+            end
+        end
+    end
+
+    if not grabbedByHBM then
+        local grabbed = false
+        local timeout = 0
+        local maxTimeout = 300
+
+        while not grabbed and timeout < maxTimeout do
+            local currentBall = workspace.Terrain:FindFirstChild("Ball")
+            if not currentBall then
+                root.CFrame = originalCF
+                return
+            end
+
+            local targetPos = currentBall.Position + Vector3.new(0, 2, 0)
+            root.CFrame = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
+            root.AssemblyLinearVelocity = Vector3.zero
+
+            task.wait(0.1)
+            remote:FireServer(buffer.fromstring(buffers["grabball"]))
+            task.wait(0.05)
+
+            if HasBall() then
+                grabbed = true
+                break
+            end
+
+            timeout = timeout + 1
+        end
+
+        if not grabbed then
             root.CFrame = originalCF
             return
         end
-
-        local targetPos = currentBall.Position + Vector3.new(0, 2, 0)
-        root.CFrame = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
-        root.AssemblyLinearVelocity = Vector3.zero
-
-        task.wait(0.1)
-        remote:FireServer(buffer.fromstring(buffers["grabball"]))
-        task.wait(0.05)
-
-        if HasBall() then
-            grabbed = true
-            break
-        end
-
-        timeout = timeout + 1
     end
 
-    if not grabbed then
-        root.CFrame = originalCF
-        return
-    end
+    DoCD("skill4", 15)
 
     plr:SetAttribute("style", "KJ")
     char.state.stun.Value = true
@@ -235,7 +265,7 @@ local function StoicBomb()
         require(rep.client.replication).KJStoicBomb(char)
     end)
 
-    task.wait(3.2)
+    task.wait(3)
 
     pcall(function() track:Stop() end)
     root.Anchored = false
