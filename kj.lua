@@ -100,35 +100,37 @@ local function UnlimitedFlexworks()
     local root = char.HumanoidRootPart
     local kj = kjFolder["Unlimited Flexworks"]
 
+    local music = Instance.new("Sound")
+    music.SoundId = "rbxassetid://114816321415107"
+    music.Volume = 3.5
+    music.MaxDistance = 10000
+    music.MinDistance = 10
+    music.Parent = root
+    music:Play()
+    Debris:AddItem(music, 30)
+
     plr:SetAttribute("style", "KJ")
     char.state.stun.Value = true
     humanoid.HipHeight = 15
     humanoid.WalkSpeed = 0
-    root.CFrame = CFrame.new(-573, 3, 950)
+    root.CFrame = root.CFrame + Vector3.new(0, 20, 0)
     root.Anchored = true
 
     pcall(function() humanoid:LoadAnimation(kj.Animation):Play() end)
     pcall(function() require(rep.client.replication).KJUnlimitedFlexworks(char) end)
 
     task.wait(29)
-
-    local gui = Instance.new("ScreenGui", plr.PlayerGui)
-    local flash = Instance.new("Frame", gui)
-    flash.Size = UDim2.new(1, 0, 1, 0)
-    flash.BackgroundColor3 = Color3.new(1, 1, 1)
-    flash.BackgroundTransparency = 1
-    TweenService:Create(flash, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play()
-    task.delay(1.5, function() gui:Destroy() end)
     
     task.wait(1.2)
     root.Anchored = false
+    root.CFrame = root.CFrame - Vector3.new(0, 20, 0)
     
     task.wait(0.5)
     local goal = plr.Team.Name == "A" and workspace.map.Bgoal or workspace.map.Agoal
     if goal then
         root.CFrame = goal.CFrame
         task.wait(0.185)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 30, true, vector.create(0, 1, 0)}})
+        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 100, true, vector.create(0, 1, 0)}})
     end
     
     task.delay(0.35, function()
@@ -137,7 +139,6 @@ local function UnlimitedFlexworks()
         char.state.stun.Value = false
     end)
 end
-
 
 local function Handball()
     local char = plr.Character
@@ -170,6 +171,78 @@ local function Dropkick()
     task.delay(6.97, function() char.state.stun.Value = false end)
 end
 
+local function StoicBomb()
+    local char = plr.Character
+    if not char or Stunned() or IsOnCD("skill4") then return end
+    if HasBall() then return end
+
+    local ball = workspace.Terrain:FindFirstChild("Ball")
+    if not ball then return end
+
+    local root = char.HumanoidRootPart
+    local dist = (root.Position - ball.Position).Magnitude
+    if dist > 1050 then return end
+
+    CancelMove()
+    DoCD("skill4", 15)
+
+    local humanoid = char.Humanoid
+    local originalCF = root.CFrame
+    local grabbed = false
+    local timeout = 0
+    local maxTimeout = 300
+
+    while not grabbed and timeout < maxTimeout do
+        local currentBall = workspace.Terrain:FindFirstChild("Ball")
+        if not currentBall then
+            root.CFrame = originalCF
+            return
+        end
+
+        local targetPos = currentBall.Position + Vector3.new(0, 2, 0)
+        root.CFrame = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
+        root.AssemblyLinearVelocity = Vector3.zero
+
+        task.wait(0.1)
+        remote:FireServer(buffer.fromstring(buffers["grabball"]))
+        task.wait(0.05)
+
+        if HasBall() then
+            grabbed = true
+            break
+        end
+
+        timeout = timeout + 1
+    end
+
+    if not grabbed then
+        root.CFrame = originalCF
+        return
+    end
+
+    plr:SetAttribute("style", "KJ")
+    char.state.stun.Value = true
+    humanoid.WalkSpeed = 0
+    root.Anchored = true
+
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://123647065656341"
+    local track = humanoid:LoadAnimation(anim)
+    track.Priority = Enum.AnimationPriority.Action4
+    track:Play()
+
+    pcall(function()
+        require(rep.client.replication).KJStoicBomb(char)
+    end)
+
+    task.wait(3.2)
+
+    pcall(function() track:Stop() end)
+    root.Anchored = false
+    humanoid.WalkSpeed = 40
+    char.state.stun.Value = false
+end
+
 local kjAwkOnCD = false
 local function KJFlow()
     local char = plr.Character
@@ -197,14 +270,17 @@ local function Setup(char)
     buttons.skill1.Base.MouseButton1Down:Connect(UnlimitedFlexworks)
     buttons.skill2.Base.MouseButton1Down:Connect(Handball)
     buttons.skill3.Base.MouseButton1Down:Connect(Dropkick)
+    buttons.skill4.Base.MouseButton1Down:Connect(StoicBomb)
     buttons.skill1.Base.ToolName.Text = "Unlimited Flexworks"
     buttons.skill2.Base.ToolName.Text = "Handball"
     buttons.skill3.Base.ToolName.Text = "20-20-20 Dropkick"
+    buttons.skill4.Base.ToolName.Text = "Stoic Bomb"
     buttons.skill1.Base.Reuse.Text = "Ball"
     buttons.skill2.Base.Reuse.Text = "Ball"
     buttons.skill3.Base.Reuse.Text = "Ball"
-    for i = 1, 3 do buttons["skill"..i].Base.Reuse.Visible = true end
-    buttons.skill4.Visible = false
+    buttons.skill4.Base.Reuse.Text = "Off Ball"
+    for i = 1, 4 do buttons["skill"..i].Base.Reuse.Visible = true end
+    buttons.skill4.Visible = true
     buttons.skill5.Visible = false
     hotbar.MagicHealth.Awakening.Text = "20 Series"
     hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
@@ -231,6 +307,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
     if input.KeyCode == Enum.KeyCode.One then UnlimitedFlexworks()
     elseif input.KeyCode == Enum.KeyCode.Two then Handball()
     elseif input.KeyCode == Enum.KeyCode.Three then Dropkick()
+    elseif input.KeyCode == Enum.KeyCode.Four then StoicBomb()
     elseif input.KeyCode == Enum.KeyCode.G then KJFlow()
     elseif input.KeyCode == Enum.KeyCode.F4 then stopped = true; print("stopped") end
 end)
