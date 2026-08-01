@@ -48,7 +48,6 @@ for _, v in pairs(kjPreload:GetDescendants()) do
     end
 end
 
-
 local function HasBall()
     return plr.Character and plr.Character:FindFirstChild("Ball")
 end
@@ -91,67 +90,11 @@ end
 local lastGoal = 0
 local goalCooldown = 30
 
-local function UnlimitedFlexworks()
-    local char = plr.Character
-    if not char or not HasBall() or IsOnCD("skill1") then return end
-    if tick() - lastGoal < goalCooldown then return end
-
-    CancelMove()
-    lastGoal = tick()
-    DoCD("skill1", goalCooldown)
-
-    local humanoid = char.Humanoid
-    local root = char.HumanoidRootPart
-    local kj = kjFolder["Unlimited Flexworks"]
-
-    local music = Instance.new("Sound")
-    music.SoundId = "rbxassetid://114816321415107"
-    music.Volume = 3.5
-    music.MaxDistance = 10000
-    music.MinDistance = 10
-    music.Parent = root
-    music:Play()
-    Debris:AddItem(music, 30)
-
-    plr:SetAttribute("style", "KJ")
-    humanoid.WalkSpeed = 0
-    root.Anchored = true
-    root.CFrame = root.CFrame + Vector3.new(0, 30, 0)
-
-    pcall(function() humanoid:LoadAnimation(kj.Animation):Play() end)
-    pcall(function() require(rep.client.replication).KJUnlimitedFlexworks(char) end)
-
-    task.wait(31)
-    
-    root.CFrame = root.CFrame - Vector3.new(0, 30, 0)
-    root.Anchored = false
-
-    local goal = plr.Team.Name == "A" and workspace.map.Bgoal or workspace.map.Agoal
-    local barriar = plr.Team.Name == "A" and workspace.map.gkbarriar.Bbarriar or workspace.map.gkbarriar.Abarriar
-    
-    if barriar then
-        barriar.CanCollide = false
-    end
-    if goal then
-        goal.CanCollide = false
-    end
-    
-    if goal and HasBall() then
-        root.CFrame = goal.CFrame
-        repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
-        task.wait(0.2)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
-    end
-
-    humanoid.WalkSpeed = 40
-end
-
-
 local function Handball()
     local char = plr.Character
-    if not char or Stunned() or not HasBall() or IsOnCD("skill2") then return end
+    if not char or Stunned() or not HasBall() or IsOnCD("skill1") then return end
     CancelMove()
-    DoCD("skill2", 4)
+    DoCD("skill1", 4)
     local humanoid = char.Humanoid
     local root = char.HumanoidRootPart
     pcall(function() soundUtil:play(kjFolder.Pass.sfx, root) end)
@@ -162,26 +105,30 @@ local function Handball()
     task.delay(0.3, function() remote:FireServer(buffer.fromstring(buffers["base"]), {{"skill2"}}) end)
 end
 
-
-local function Dropkick()
+local function SignatureDribble()
     local char = plr.Character
-    if not char or Stunned() or IsOnCD("skill3") then return end
+    if not char or Stunned() or not HasBall() or IsOnCD("skill2") then return end
     CancelMove()
-    DoCD("skill3", 10)
+    DoCD("skill2", 8)
+    
     local humanoid = char.Humanoid
     local root = char.HumanoidRootPart
-    char.state.stun.Value = true
-    pcall(function() soundUtil:play(kjFolder["20-20-20 Dropkick"].DropkickUse, root) end)
-    local track = humanoid:LoadAnimation(kjFolder["20-20-20 Dropkick"].Use)
+    
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://137498651201631"
+    local track = humanoid:LoadAnimation(anim)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-    task.spawn(function() pcall(function() KJVFX.KJDropkick(char, char) end) end)
-    task.delay(6.97, function() char.state.stun.Value = false end)
+    
+    task.delay(0, function()
+        if not char or not char.Parent then return end
+        pcall(function() KJVFX.KJSignatureDribble(char) end)
+    end)
 end
 
 local function StoicBomb()
     local char = plr.Character
-    if not char or Stunned() or IsOnCD("skill4") then return end
+    if not char or Stunned() or IsOnCD("skill3") then return end
     if HasBall() then return end
 
     local ball = workspace.Terrain:FindFirstChild("Ball")
@@ -192,7 +139,7 @@ local function StoicBomb()
     if dist > 1050 then return end
 
     CancelMove()
-    DoCD("skill4", 0.8)
+    DoCD("skill3", 0.8)
 
     local humanoid = char.Humanoid
     local originalCF = root.CFrame
@@ -243,7 +190,7 @@ local function StoicBomb()
         end
     end
 
-    DoCD("skill4", 15)
+    DoCD("skill3", 15)
 
     plr:SetAttribute("style", "KJ")
     char.state.stun.Value = true
@@ -268,21 +215,130 @@ local function StoicBomb()
     char.state.stun.Value = false
 end
 
-local kjAwkOnCD = false
+local function Dropkick()
+    local char = plr.Character
+    if not char or Stunned() or IsOnCD("skill4") then return end
+    
+    CancelMove()
+    DoCD("skill4", 10)
+    local humanoid = char.Humanoid
+    local root = char.HumanoidRootPart
+    char.state.stun.Value = true
+    
+    pcall(function() soundUtil:play(kjFolder["20-20-20 Dropkick"].DropkickUse, root) end)
+    
+    local track = humanoid:LoadAnimation(kjFolder["20-20-20 Dropkick"].Use)
+    track.Priority = Enum.AnimationPriority.Action4
+    track:Play()
+    
+    task.spawn(function() pcall(function() KJVFX.KJDropkick(char, char) end) end)
+    
+    task.delay(6.97, function() 
+        if char and char.state then
+            char.state.stun.Value = false 
+        end
+    end)
+end
+
+local function UnlimitedFlexworks()
+    local char = plr.Character
+    if not char or not HasBall() or IsOnCD("skill5") then return end
+    if tick() - lastGoal < goalCooldown then return end
+
+    CancelMove()
+    lastGoal = tick()
+    DoCD("skill5", goalCooldown)
+
+    local humanoid = char.Humanoid
+    local root = char.HumanoidRootPart
+    local kj = kjFolder["Unlimited Flexworks"]
+
+    local music = Instance.new("Sound")
+    music.SoundId = "rbxassetid://114816321415107"
+    music.Volume = 3.5
+    music.MaxDistance = 10000
+    music.MinDistance = 10
+    music.Parent = root
+    music:Play()
+    Debris:AddItem(music, 30)
+
+    plr:SetAttribute("style", "KJ")
+    humanoid.WalkSpeed = 0
+    root.Anchored = true
+    root.CFrame = root.CFrame + Vector3.new(0, 30, 0)
+
+    pcall(function() humanoid:LoadAnimation(kj.Animation):Play() end)
+    pcall(function() require(rep.client.replication).KJUnlimitedFlexworks(char) end)
+
+    task.wait(31)
+
+    root.CFrame = root.CFrame - Vector3.new(0, 30, 0)
+    root.Anchored = false
+
+    local goal = plr.Team.Name == "A" and workspace.map.Bgoal or workspace.map.Agoal
+    local barriar = plr.Team.Name == "A" and workspace.map.gkbarriar.Bbarriar or workspace.map.gkbarriar.Abarriar
+
+    if barriar then
+        barriar.CanCollide = false
+    end
+    if goal then
+        goal.CanCollide = false
+    end
+
+    if goal and HasBall() then
+        root.CFrame = goal.CFrame
+        repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
+        task.wait(0.2)
+        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
+    end
+
+    humanoid.WalkSpeed = 40
+end
+
+local kjFlowOnCD = false
+local kjFlowSound = nil
+
 local function KJFlow()
     local char = plr.Character
-    if not char or Stunned() or kjAwkOnCD then return end
+    if not char or Stunned() or kjFlowOnCD then return end
     if HasBall() then return end
-    kjAwkOnCD = true
+    
+    kjFlowOnCD = true
     char.state.stun.Value = true
+    
     local humanoid = char.Humanoid
+    local root = char.HumanoidRootPart
+    
+    plr:SetAttribute("style", "KJ")
+    
+    local originalSpeed = humanoid.WalkSpeed
+    humanoid.WalkSpeed = 0
+    
     local track = humanoid:LoadAnimation(kjFolder["Off Ball Flow"].User)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-    task.spawn(function() pcall(function() KJVFX.KJOffBallAwk(char) end) end)
+    
+    task.spawn(function() 
+        pcall(function() KJVFX.KJOffBallAwk(char) end) 
+    end)
+    
+    if kjFlowSound and kjFlowSound.IsPlaying then
+        kjFlowSound:Stop()
+        kjFlowSound:Destroy()
+    end
+    
+    kjFlowSound = Instance.new("Sound")
+    kjFlowSound.SoundId = "rbxassetid://81612016582519"
+    kjFlowSound.Volume = 3
+    kjFlowSound.MaxDistance = 10000
+    kjFlowSound.MinDistance = 10
+    kjFlowSound.Parent = root
+    kjFlowSound:Play()
+    
     task.delay(7.98, function()
         char.state.stun.Value = false
-        task.delay(30, function() kjAwkOnCD = false end)
+        humanoid.WalkSpeed = originalSpeed or 40
+        kjFlowOnCD = false
     end)
 end
 
@@ -292,36 +348,46 @@ local function Setup(char)
     task.wait(0.1)
     local hotbar = plr.PlayerGui:WaitForChild("Hotbar")
     local buttons = hotbar.Backpack.Hotbar
-    buttons.skill1.Base.MouseButton1Down:Connect(UnlimitedFlexworks)
-    buttons.skill2.Base.MouseButton1Down:Connect(Handball)
-    buttons.skill3.Base.MouseButton1Down:Connect(Dropkick)
-    buttons.skill4.Base.MouseButton1Down:Connect(StoicBomb)
-    buttons.skill1.Base.ToolName.Text = "Unlimited Flexworks"
-    buttons.skill2.Base.ToolName.Text = "Handball"
-    buttons.skill3.Base.ToolName.Text = "20-20-20 Dropkick"
-    buttons.skill4.Base.ToolName.Text = "Stoic Bomb"
+    
+    buttons.skill1.Base.MouseButton1Down:Connect(Handball)
+    buttons.skill2.Base.MouseButton1Down:Connect(SignatureDribble)
+    buttons.skill3.Base.MouseButton1Down:Connect(StoicBomb)
+    buttons.skill4.Base.MouseButton1Down:Connect(Dropkick)
+    buttons.skill5.Base.MouseButton1Down:Connect(UnlimitedFlexworks)
+    
+    buttons.skill1.Base.ToolName.Text = "Handball"
+    buttons.skill2.Base.ToolName.Text = "Signature Dribble"
+    buttons.skill3.Base.ToolName.Text = "Stoic Bomb"
+    buttons.skill4.Base.ToolName.Text = "20-20-20 Drop-Kick"
+    buttons.skill5.Base.ToolName.Text = "Unlimited Flex Shots"
+    
     buttons.skill1.Base.Reuse.Text = "Ball"
     buttons.skill2.Base.Reuse.Text = "Ball"
-    buttons.skill3.Base.Reuse.Text = "Ball"
+    buttons.skill3.Base.Reuse.Text = "Off Ball"
     buttons.skill4.Base.Reuse.Text = "Off Ball"
-    for i = 1, 4 do buttons["skill"..i].Base.Reuse.Visible = true end
-    buttons.skill4.Visible = true
-    buttons.skill5.Visible = false
+    buttons.skill5.Base.Reuse.Text = "Ball"
+    
+    for i = 1, 5 do 
+        buttons["skill"..i].Base.Reuse.Visible = true
+        buttons["skill"..i].Visible = true
+    end
+    
     hotbar.MagicHealth.Awakening.Text = "20 Series"
     hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
         ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(168, 0, 0))
     }
+    
     char:GetAttributeChangedSignal("FlowActive"):Connect(function()
         if char:GetAttribute("FlowActive") == true and not stopped then
             char:SetAttribute("FlowActive", false)
+            KJFlow()
         end
     end)
 end
 
 Setup(plr.Character)
 plr.CharacterAdded:Connect(function(char)
-    kjAwkOnCD = false
     lastGoal = 0
     task.wait(1)
     Setup(char)
@@ -329,12 +395,21 @@ end)
 
 UserInputService.InputBegan:Connect(function(input, bg)
     if bg or stopped then return end
-    if input.KeyCode == Enum.KeyCode.One then UnlimitedFlexworks()
-    elseif input.KeyCode == Enum.KeyCode.Two then Handball()
-    elseif input.KeyCode == Enum.KeyCode.Three then Dropkick()
-    elseif input.KeyCode == Enum.KeyCode.Four then StoicBomb()
+    if input.KeyCode == Enum.KeyCode.One then Handball()
+    elseif input.KeyCode == Enum.KeyCode.Two then SignatureDribble()
+    elseif input.KeyCode == Enum.KeyCode.Three then StoicBomb()
+    elseif input.KeyCode == Enum.KeyCode.Four then Dropkick()
+    elseif input.KeyCode == Enum.KeyCode.Five then UnlimitedFlexworks()
     elseif input.KeyCode == Enum.KeyCode.G then KJFlow()
-    elseif input.KeyCode == Enum.KeyCode.F4 then stopped = true; print("stopped") end
+    elseif input.KeyCode == Enum.KeyCode.F4 then 
+        stopped = true
+        if kjFlowSound then
+            kjFlowSound:Stop()
+            kjFlowSound:Destroy()
+            kjFlowSound = nil
+        end
+        print("stopped") 
+    end
 end)
 
 game.StarterGui:SetCore("SendNotification", {
