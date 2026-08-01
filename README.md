@@ -1,7 +1,7 @@
 
 > [!IMPORTANT]
 > ###  Original Creator
-> **All scripts created by Tze#0638**
+> **All scripts created by Tze#0638 (me)**
 >
 > ### Mobile Adaptation & Maintenance
 > **Special thanks to:**
