@@ -130,6 +130,8 @@ local function Skill1(char)
     CancelMove()
     DoCDVisual(8, "skill1")
     
+    local root = char:WaitForChild("HumanoidRootPart")
+    
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://97586424269981"
     local humanoid = char:WaitForChild("Humanoid")
@@ -141,22 +143,36 @@ local function Skill1(char)
     local track = animator:LoadAnimation(anim)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-    
-    replication.LokiKick(char)
+
+    task.delay(0.25, function()
+        if not char or not char.Parent then return end
+        replication.LokiKick(char)
+        
+        local impactSound = Instance.new("Sound")
+        impactSound.SoundId = "rbxassetid://118471535207840"
+        impactSound.Volume = 2
+        impactSound.Parent = root
+        impactSound:Play()
+        Debris:AddItem(impactSound, 2)
+    end)
     
     TeleportShot(char, 0.4)
 end
+
+local TooSlowActive = false
 
 local function Skill2(char)
     if IsMoveOnCD("skill2") then CancelMove() return end
     if HasBall() then return CancelMove() end
     if Stunned() then return end
+    if TooSlowActive then return end
     
     local ball = Workspace.Terrain:FindFirstChild("Ball")
     if not ball then return end
     
     CancelMove()
     DoCDVisual(10, "skill2")
+    TooSlowActive = true
     
     local root = char:WaitForChild("HumanoidRootPart")
     
@@ -166,6 +182,7 @@ local function Skill2(char)
     while not grabbed and timeout < 60 do
         local currentBall = Workspace.Terrain:FindFirstChild("Ball")
         if not currentBall then
+            TooSlowActive = false
             return
         end
         
@@ -186,14 +203,22 @@ local function Skill2(char)
     end
     
     if not grabbed then
+        TooSlowActive = false
         return
     end
+    
+    local catchSound = Instance.new("Sound")
+    catchSound.SoundId = "rbxassetid://129129031789518"
+    catchSound.Volume = 1.5
+    catchSound.Parent = root
+    catchSound:Play()
+    Debris:AddItem(catchSound, 2)
     
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://82371642989185"
     local humanoid = char:WaitForChild("Humanoid")
     local animator = humanoid:FindFirstChildOfClass("Animator")
-    if not animator then
+    if not animator then          
         animator = Instance.new("Animator")
         animator.Parent = humanoid
     end
@@ -202,6 +227,8 @@ local function Skill2(char)
     track:Play()
     
     replication.lokicatch(char)
+    
+    TooSlowActive = false
 end
 
 local Skill3Active = false
@@ -212,6 +239,22 @@ local function Skill3(char)
     CancelMove()
     DoCDVisual(0.1, "skill3")
     Skill3Active = true
+    
+    local root = char:WaitForChild("HumanoidRootPart")
+    
+    local dashSound = Instance.new("Sound")
+    dashSound.SoundId = "rbxassetid://120170187802322"
+    dashSound.Volume = 1.5
+    dashSound.Parent = root
+    dashSound:Play()
+    Debris:AddItem(dashSound, 3)
+    
+    local direction = root.CFrame.LookVector
+    root.AssemblyLinearVelocity = direction * 150
+    
+    task.delay(0.3, function()
+        root.AssemblyLinearVelocity = Vector3.zero
+    end)
     
     replication.LokiDashSuper(char)
     
@@ -226,6 +269,15 @@ local function Skill4(char)
     CancelMove()
     DoCDVisual(15, "skill4")
     
+    local root = char:WaitForChild("HumanoidRootPart")
+    
+    local kickSound = Instance.new("Sound")
+    kickSound.SoundId = "rbxassetid://129129031789518"
+    kickSound.Volume = 1.5
+    kickSound.Parent = root
+    kickSound:Play()
+    Debris:AddItem(kickSound, 2)
+    
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://115839777221212"
     local humanoid = char:WaitForChild("Humanoid")
@@ -237,8 +289,18 @@ local function Skill4(char)
     local track = animator:LoadAnimation(anim)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-    
-    replication.LokiKick(char)
+
+    task.delay(0.25, function()
+        if not char or not char.Parent then return end
+        replication.LokiKick(char)
+        
+        local impactSound = Instance.new("Sound")
+        impactSound.SoundId = "rbxassetid://118471535207840"
+        impactSound.Volume = 2
+        impactSound.Parent = root
+        impactSound:Play()
+        Debris:AddItem(impactSound, 2)
+    end)
     
     TeleportShot(char, 0.4)
 end
@@ -285,11 +347,18 @@ local function Skill5(char)
         return
     end
     
+    local catchSound = Instance.new("Sound")
+    catchSound.SoundId = "rbxassetid://129129031789518"
+    catchSound.Volume = 1.5
+    catchSound.Parent = root
+    catchSound:Play()
+    Debris:AddItem(catchSound, 2)
+    
     local anim = Instance.new("Animation")
-    anim.AnimationId = "rbxassetid://82240286756891"
+    anim.AnimationId = "rbxassetid://82371642989185"
     local humanoid = char:WaitForChild("Humanoid")
     local animator = humanoid:FindFirstChildOfClass("Animator")
-    if not animator then
+    if not animator then          
         animator = Instance.new("Animator")
         animator.Parent = humanoid
     end
@@ -301,6 +370,7 @@ local function Skill5(char)
 end
 
 local lokiFlowOnCD = false
+local lokiFlowSound = nil
 
 local function LokiFlow(char)
     if Stunned() or lokiFlowOnCD then return end
@@ -308,11 +378,34 @@ local function LokiFlow(char)
     
     lokiFlowOnCD = true
     
+    local root = char:WaitForChild("HumanoidRootPart")
+    local humanoid = char:WaitForChild("Humanoid")
+    
+    plr:SetAttribute("style", "loki")
+    
+    local originalSpeed = humanoid.WalkSpeed
+    humanoid.WalkSpeed = 0
+    
+    if lokiFlowSound and lokiFlowSound.IsPlaying then
+        lokiFlowSound:Stop()
+        lokiFlowSound:Destroy()
+    end
+    
+    lokiFlowSound = Instance.new("Sound")
+    lokiFlowSound.SoundId = getasset(filename)
+    lokiFlowSound.Volume = 3
+    lokiFlowSound.MaxDistance = 10000
+    lokiFlowSound.MinDistance = 10
+    lokiFlowSound.Parent = root
+    lokiFlowSound:Play()
+    
     replication.LokiFlow(char)
     
     remote:FireServer(buffer.fromstring(buffers["base"]), { { "tackle" } })
     
-    task.delay(30, function()
+    task.delay(8, function()
+        char.state.stun.Value = false
+        humanoid.WalkSpeed = originalSpeed or 40
         lokiFlowOnCD = false
     end)
 end
@@ -425,7 +518,13 @@ UserInputService.InputBegan:Connect(function(input, bg)
     elseif input.KeyCode == Enum.KeyCode.F4 then
         stopped = true
         Skill3Active = false
+        TooSlowActive = false
         soundReplacementActive = false
+        if lokiFlowSound then
+            lokiFlowSound:Stop()
+            lokiFlowSound:Destroy()
+            lokiFlowSound = nil
+        end
         if connection then
             connection:Disconnect()
         end
