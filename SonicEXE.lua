@@ -9,20 +9,17 @@ local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 
-if getgenv().DisableWatermark == nil then getgenv().DisableWatermark = false end
-if getgenv().LegitMode == nil then getgenv().LegitMode = false end
-if getgenv().SkillShoot == nil then getgenv().SkillShoot = false end
-if getgenv().DribbleSpeed == nil then getgenv().DribbleSpeed = 1 end
-if getgenv().HBM == nil then getgenv().HBM = false end
-getgenv().DribbleSpeed = math.clamp(getgenv().DribbleSpeed, 0.1, 3)
-if type(getgenv().HBM) == "number" then
-    getgenv().HBM = math.clamp(getgenv().HBM, 5, 30)
+local buffers = {}
+loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
+repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
+for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
+    buffers[val.Name] = val.Value
 end
+game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 local stopped = false
 local exeAwkOnCD = false
 
-local query = require(rep.query)
 local trajectory = {}
 local metavisionEnabled = false
 local metavisionLoop = nil
@@ -316,180 +313,6 @@ workspace.ChildAdded:Connect(function(child)
     if child.Name == "map" then watchMap() end
 end)
 
-local packets = require(rep:WaitForChild("packets"))
-local function ShootSkill()
-    packets.bytenet_use.send({"skill1"})
-end
-
-local buffers = {}
-
-local mobileScreenGui = nil
-
-function StopMoveset()
-    stopped = true
-    metavisionEnabled = false
-    
-    if metavisionLoop then
-        metavisionLoop:Disconnect()
-        metavisionLoop = nil
-    end
-    
-    hideAllMetavision()
-    
-    pcall(function()
-        visionFolder:Destroy()
-    end)
-    
-    if mobileScreenGui then
-        pcall(function()
-            mobileScreenGui:Destroy()
-        end)
-        mobileScreenGui = nil
-    end
-    
-    if watermarkObj and watermarkObj.Parent then 
-        pcall(function()
-            watermarkObj:Destroy()
-        end)
-    end
-    
-    local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
-    if hotbar then
-        local buttons = hotbar.Backpack.Hotbar
-        for i = 1, 4 do
-            local skill = buttons:FindFirstChild("skill" .. i)
-            if skill then
-                skill.Visible = false
-            end
-        end
-    end
-end
-
-local function createMobileUI(skillFuncs)
-    if mobileScreenGui then mobileScreenGui:Destroy() end
-    mobileScreenGui = Instance.new("ScreenGui")
-    mobileScreenGui.Name = "MobileSkillUI"
-    mobileScreenGui.ResetOnSpawn = false
-    mobileScreenGui.Parent = plr:WaitForChild("PlayerGui")
-    
-    local function createButton(name, index, func, posY, color, customText)
-        local btn = Instance.new("TextButton")
-        btn.Name = name
-        btn.Size = UDim2.new(0, 70, 0, 70)
-        btn.BackgroundColor3 = color or Color3.fromRGB(0, 0, 0)
-        btn.BackgroundTransparency = 0.3
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.TextSize = 12
-        btn.Text = customText or (name == "Stop" and "F4" or tostring(index))
-        btn.Parent = mobileScreenGui
-        
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 5)
-        corner.Parent = btn
-        
-        local pos = UDim2.new(0, 10 + (index-1)*80, 0, posY or 10)
-        btn.Position = pos
-        
-        local dragging = false
-        local dragStart = nil
-        local posStart = nil
-        
-        btn.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = input.Position
-                posStart = btn.Position
-            end
-        end)
-        
-        btn.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch then
-                dragging = false
-            end
-        end)
-        
-        btn.InputChanged:Connect(function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.Touch then
-                local delta = input.Position - dragStart
-                btn.Position = posStart + UDim2.new(0, delta.X, 0, delta.Y)
-            end
-        end)
-        
-        btn.Activated:Connect(func)
-        
-        return btn
-    end
-    
-    createButton("Skill1", 1, skillFuncs[1], 10)
-    createButton("Skill2", 2, skillFuncs[2], 10)
-    createButton("Skill3", 3, skillFuncs[3], 10)
-    createButton("Skill4", 4, skillFuncs[4], 10)
-    createButton("Ultimate", 5, skillFuncs[5], 90, Color3.fromRGB(255, 215, 0), "G")
-    createButton("Stop", 6, StopMoveset, 170, Color3.fromRGB(255, 0, 0), "F4")
-end
-
-local skillNames = {
-    [1] = "Shortcut",
-    [2] = "Exterminate",
-    [3] = "EXE Strike",
-    [4] = "Open Metavision"
-}
-
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
-end
-game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
-
-local function DetectExecutor()
-    local hasRequire = pcall(function() return require ~= nil end)
-    local hasHook = hookmetamethod ~= nil
-    local hasFenv = (getfenv ~= nil and setfenv ~= nil)
-    local execName = "Unknown"
-    if identifyexecutor then
-        local success, name = pcall(identifyexecutor)
-        if success and name then execName = name end
-    elseif syn and syn.name then execName = syn.name
-    elseif getexecutorname then execName = getexecutorname() end
-    local isFull = hasRequire and hasHook and hasFenv
-    return isFull, execName
-end
-
-local isFullExecutor, executorName = DetectExecutor()
-
-if not isFullExecutor then
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "Not Support Executor",
-        Text = string.format("%s detected. Use a better executor.", executorName),
-        Duration = 5,
-        Button1 = "Ok"
-    })
-else
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "Full Support",
-        Text = string.format("%s detected. Fully supported!", executorName),
-        Duration = 3,
-        Button1 = "Ok"
-    })
-end
-
-local watermarkObj = nil
-if not getgenv().DisableWatermark then
-    watermarkObj = Instance.new("TextLabel")
-    watermarkObj.Text = "Made By tze"
-    watermarkObj.Name = "Watermark"
-    watermarkObj.Position = UDim2.new(0, 10, 0, 10)
-    watermarkObj.Size = UDim2.new(0, 200, 0, 30)
-    watermarkObj.TextStrokeTransparency = 1
-    watermarkObj.TextColor3 = Color3.fromRGB(200, 180, 0)
-    watermarkObj.TextTransparency = 0.5
-    watermarkObj.BackgroundTransparency = 1
-    watermarkObj.Font = Enum.Font.GothamBold
-    watermarkObj.TextSize = 18
-    watermarkObj.Parent = plr:WaitForChild("PlayerGui")
-end
-
 local function HasBall()
     return plr.Character and plr.Character:FindFirstChild("Ball")
 end
@@ -570,19 +393,35 @@ local function Stun(time, disableRotate)
     Debris:AddItem(cfg, time)
 end
 
+local function BlockOriginalSkills()
+    task.wait(0.1)
+    local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
+    if hotbar then
+        local buttons = hotbar.Backpack.Hotbar
+        for i = 1, 5 do
+            local skill = buttons:FindFirstChild("skill" .. i)
+            if skill and skill:FindFirstChild("Base") then
+                local base = skill.Base
+                base.Active = false
+                base.AutoButtonColor = false
+                pcall(function()
+                    base.MouseButton1Click:DisconnectAll()
+                    base.MouseButton1Down:DisconnectAll()
+                end)
+            end
+        end
+    end
+end
+
 local function TeleportShot(char, shootDelay)
     local root = char.HumanoidRootPart
     task.delay(shootDelay, function()
         if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
         
         local function executeShot()
-            if getgenv().SkillShoot then
-                ShootSkill()
-            else
-                remote:FireServer(buffer.fromstring(buffers["base"]), {
-                    {"kick", 100, false, root.CFrame.LookVector * 1e19}
-                })
-            end
+            remote:FireServer(buffer.fromstring(buffers["base"]), {
+                {"kick", 100, false, root.CFrame.LookVector * 1e19}
+            })
         end
 
         if getgenv().LegitMode then
@@ -621,26 +460,6 @@ local function TeleportShot(char, shootDelay)
     end)
 end
 
-local function BlockOriginalSkills()
-    task.wait(0.1)
-    local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
-    if hotbar then
-        local buttons = hotbar.Backpack.Hotbar
-        for i = 1, 4 do
-            local skill = buttons:FindFirstChild("skill" .. i)
-            if skill and skill:FindFirstChild("Base") then
-                local base = skill.Base
-                base.Active = false
-                base.AutoButtonColor = false
-                pcall(function()
-                    base.MouseButton1Click:DisconnectAll()
-                    base.MouseButton1Down:DisconnectAll()
-                end)
-            end
-        end
-    end
-end
-
 local function Shortcut()
     local char = plr.Character
     if not char or Stunned() or IsOnCD("skill1") then return end
@@ -670,11 +489,9 @@ local function Shortcut()
     sound:Play()
     Debris:AddItem(sound, 3)
 
-    local distanceMultiplier = math.clamp(getgenv().DribbleSpeed or 1, 0.1, 3)
-    
-    Stun(0.3 * distanceMultiplier, false)
+    Stun(0.3, false)
 
-    task.delay(1.5 * distanceMultiplier, function()
+    task.delay(1.5, function()
         pcall(function()
             track:Stop()
         end)
@@ -921,121 +738,65 @@ local function ExeAwk()
     end)
 end
 
-task.spawn(function()
-    while true do
-        if stopped then break end
-        local gui = plr:WaitForChild("PlayerGui", 2)
-        if gui then
-            local hotbar = gui:FindFirstChild("Hotbar")
-            if hotbar then
-                hotbar.MagicHealth.Awakening.Text = "FLOW"
-                hotbar.MagicHealth.TextLabel.Text = "Many Souls To Play With."
-                hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0))
-                }
-
-                local backpack = hotbar:FindFirstChild("Backpack")
-                if backpack then
-                    local hb = backpack:FindFirstChild("Hotbar")
-                    if hb then
-                        for i = 1, 4 do
-                            local skill = hb:FindFirstChild("skill" .. i)
-                            if skill and skill:FindFirstChild("Base") and skill.Base:FindFirstChild("ToolName") then
-                                if skill.Base.ToolName.Text ~= skillNames[i] then
-                                    skill.Base.ToolName.Text = skillNames[i]
-                                end
-                            end
-                            if skill and skill:FindFirstChild("Base") and skill.Base:FindFirstChild("Reuse") then
-                                local reuseTexts = {
-                                    [1] = "Ball Only",
-                                    [2] = "Off Ball",
-                                    [3] = "Ball Only",
-                                    [4] = "God Mode"
-                                }
-                                skill.Base.Reuse.Text = reuseTexts[i] or ""
-                                skill.Base.Reuse.Visible = true
-                            end
-                        end
-                    end
-                end
+local function StopMoveset()
+    stopped = true
+    metavisionEnabled = false
+    
+    if metavisionLoop then
+        metavisionLoop:Disconnect()
+        metavisionLoop = nil
+    end
+    
+    hideAllMetavision()
+    
+    pcall(function()
+        visionFolder:Destroy()
+    end)
+    
+    local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
+    if hotbar then
+        local buttons = hotbar.Backpack.Hotbar
+        for i = 1, 5 do
+            local skill = buttons:FindFirstChild("skill" .. i)
+            if skill then
+                skill.Visible = false
             end
         end
-        task.wait(0.1)
     end
-end)
+end
 
 local function Setup(char)
     if stopped then return end
-    if not char then return end
-    
     repeat task.wait() until plr.Team ~= game.Teams.lobby
     task.wait(0.1)
-    
     BlockOriginalSkills()
-    plr:SetAttribute("style", "exe")
-
+    
     local hotbar = plr.PlayerGui:WaitForChild("Hotbar")
     local buttons = hotbar.Backpack.Hotbar
 
-    if buttons.skill1 and buttons.skill1.Base then
-        buttons.skill1.Base.MouseButton1Down:Connect(Shortcut)
-        buttons.skill1.Base.MouseButton1Click:Connect(Shortcut)
-        buttons.skill1.Visible = true
-    end
+    if buttons.skill5 then buttons.skill5.Visible = false end
+    if buttons.skill5 and buttons.skill5.Base then buttons.skill5.Base.Active = false end
 
-    if buttons.skill2 and buttons.skill2.Base then
-        buttons.skill2.Base.MouseButton1Down:Connect(Exterminate)
-        buttons.skill2.Base.MouseButton1Click:Connect(Exterminate)
-        buttons.skill2.Visible = true
-    end
+    buttons.skill1.Base.MouseButton1Down:Connect(Shortcut)
+    buttons.skill2.Base.MouseButton1Down:Connect(Exterminate)
+    buttons.skill3.Base.MouseButton1Down:Connect(EXEStrike)
+    buttons.skill4.Base.MouseButton1Down:Connect(OpenMetavision)
 
-    if buttons.skill3 and buttons.skill3.Base then
-        buttons.skill3.Base.MouseButton1Down:Connect(EXEStrike)
-        buttons.skill3.Base.MouseButton1Click:Connect(EXEStrike)
-        buttons.skill3.Visible = true
-    end
+    buttons.skill1.Base.Reuse.Text = "Ball"
+    buttons.skill2.Base.Reuse.Text = "Off Ball"
+    buttons.skill3.Base.Reuse.Text = "Ball"
+    buttons.skill4.Base.Reuse.Text = "God Mode"
 
-    if buttons.skill4 and buttons.skill4.Base then
-        buttons.skill4.Base.MouseButton1Down:Connect(OpenMetavision)
-        buttons.skill4.Base.MouseButton1Click:Connect(OpenMetavision)
-        buttons.skill4.Visible = true
+    for i = 1, 4 do 
+        buttons["skill"..i].Base.Reuse.Visible = true
+        buttons["skill"..i].Visible = true
     end
-
-    if buttons.skill5 then
-        buttons.skill5.Visible = false
-    end
-
-    pcall(function()
-        if buttons.skill1 and buttons.skill1.Base then
-            buttons.skill1.Base.TouchTap:Connect(Shortcut)
-        end
-        if buttons.skill2 and buttons.skill2.Base then
-            buttons.skill2.Base.TouchTap:Connect(Exterminate)
-        end
-        if buttons.skill3 and buttons.skill3.Base then
-            buttons.skill3.Base.TouchTap:Connect(EXEStrike)
-        end
-        if buttons.skill4 and buttons.skill4.Base then
-            buttons.skill4.Base.TouchTap:Connect(OpenMetavision)
-        end
-    end)
 
     pcall(function()
         local mh = hotbar:FindFirstChild("MagicHealth")
         if mh and mh:FindFirstChild("Awakening") then
             mh.Awakening.TouchTap:Connect(ExeAwk)
             mh.Awakening.MouseButton1Click:Connect(ExeAwk)
-        end
-    end)
-
-    createMobileUI({Shortcut, Exterminate, EXEStrike, OpenMetavision, ExeAwk})
-    
-    query.requestTrajectory:Fire()
-    query.receiveTrajectory.OnClientEvent:Connect(function(data)
-        if stopped then return end
-        if data and type(data) == "table" and #data > 0 then
-            trajectory = data
         end
     end)
 end
@@ -1046,6 +807,30 @@ plr.CharacterAdded:Connect(function(char)
     exeAwkOnCD = false
     task.wait(1)
     Setup(char)
+end)
+
+task.spawn(function()
+    while true do
+        if stopped then break end
+        local gui = plr:WaitForChild("PlayerGui", 2)
+        if gui then
+            local hotbar = gui:FindFirstChild("Hotbar")
+            if hotbar then
+                hotbar.Backpack.Hotbar.skill1.Base.ToolName.Text = "Shortcut"
+                hotbar.Backpack.Hotbar.skill2.Base.ToolName.Text = "Exterminate"
+                hotbar.Backpack.Hotbar.skill3.Base.ToolName.Text = "EXE Strike"
+                hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Open Metavision"
+
+                hotbar.MagicHealth.Awakening.Text = "FLOW"
+                hotbar.MagicHealth.TextLabel.Text = "Many Souls To Play With."
+                hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0))
+                }
+            end
+        end
+        task.wait(0.1)
+    end
 end)
 
 UserInputService.InputBegan:Connect(function(input, bg)
@@ -1061,10 +846,8 @@ UserInputService.InputBegan:Connect(function(input, bg)
         EXEStrike()
     elseif input.KeyCode == Enum.KeyCode.Four then
         OpenMetavision()
-    elseif input.KeyCode == Enum.KeyCode.F4 then
-        StopMoveset()
     elseif input.KeyCode == Enum.KeyCode.F5 then
-        if watermarkObj and watermarkObj.Parent then watermarkObj:Destroy() end
+        StopMoveset()
     end
 end)
 
