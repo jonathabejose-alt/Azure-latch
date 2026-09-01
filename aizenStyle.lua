@@ -272,19 +272,21 @@ local function AizenAwaken()
     aizenAwkOnCD = true
 
     local humanoid = char.Humanoid
+    local root = char.HumanoidRootPart
     local savedStyle = plr:GetAttribute("style")
 
+    root.Anchored = true
     Stun(21, true)
     plr:SetAttribute("style", "aizen")
 
-    TweenService:Create(humanoid, TweenInfo.new(0.5, Enum.EasingStyle.Cubic), {HipHeight = 25}):Play()
+    TweenService:Create(humanoid, TweenInfo.new(0.1, Enum.EasingStyle.Cubic), {HipHeight = 25}):Play()
 
-    task.delay(0.5, function()
+    task.delay(0.1, function()
         task.spawn(function()
             pcall(function()
                 local song = Instance.new("Sound")
                 song.SoundId = "rbxassetid://112192271447858"
-                song.Volume = 12
+                song.Volume = 2
                 song.Parent = SoundService
                 song:Play()
                 Debris:AddItem(song, 120)
@@ -296,7 +298,7 @@ local function AizenAwaken()
                 local anim = Instance.new("Animation")
                 anim.AnimationId = "rbxassetid://110777328331339"
                 local track = humanoid:LoadAnimation(anim)
-                track.Priority = Enum.AnimationPriority.Action
+                track.Priority = Enum.AnimationPriority.Action4
                 track:Play()
                 task.delay(21, function()
                     pcall(function() track:Stop() end)
@@ -314,7 +316,8 @@ local function AizenAwaken()
     task.delay(21, function()
         if not char or not char.Parent then return end
         
-        TweenService:Create(humanoid, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {HipHeight = 0}):Play()
+        TweenService:Create(humanoid, TweenInfo.new(0.1, Enum.EasingStyle.Cubic), {HipHeight = 0}):Play()
+        root.Anchored = false
         plr:SetAttribute("style", savedStyle)
         
         task.delay(30, function()
@@ -396,7 +399,7 @@ task.spawn(function()
                 hotbar.Backpack.Hotbar.skill3.Base.ToolName.Text = "Goryu Feint"
                 hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Shatter Second"
 
-                hotbar.MagicHealth.Awakening.Text = "AWAKEN"
+                hotbar.MagicHealth.Awakening.Text = "FLOW"
                 hotbar.MagicHealth.TextLabel.Text = "Welcome to my Soul Society."
                 hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
                     ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 100, 255)),
