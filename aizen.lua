@@ -277,35 +277,37 @@ local function AizenAwaken()
     Stun(21, true)
     plr:SetAttribute("style", "aizen")
 
-    TweenService:Create(humanoid, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {HipHeight = 25}):Play()
+    TweenService:Create(humanoid, TweenInfo.new(0.5, Enum.EasingStyle.Cubic), {HipHeight = 25}):Play()
 
-    task.spawn(function()
-        pcall(function()
-            local song = Instance.new("Sound")
-            song.SoundId = "rbxassetid://112192271447858"
-            song.Volume = 12
-            song.Parent = SoundService
-            song:Play()
-            Debris:AddItem(song, 120)
-        end)
-    end)
-
-    task.spawn(function()
-        pcall(function()
-            local anim = Instance.new("Animation")
-            anim.AnimationId = "rbxassetid://110777328331339"
-            local track = humanoid:LoadAnimation(anim)
-            track.Priority = Enum.AnimationPriority.Action
-            track:Play()
-            task.delay(21, function()
-                pcall(function() track:Stop() end)
+    task.delay(0.5, function()
+        task.spawn(function()
+            pcall(function()
+                local song = Instance.new("Sound")
+                song.SoundId = "rbxassetid://112192271447858"
+                song.Volume = 12
+                song.Parent = SoundService
+                song:Play()
+                Debris:AddItem(song, 120)
             end)
         end)
-    end)
 
-    task.spawn(function()
-        pcall(function()
-            require(rep.client.replication).aizen_awaken(char)
+        task.spawn(function()
+            pcall(function()
+                local anim = Instance.new("Animation")
+                anim.AnimationId = "rbxassetid://110777328331339"
+                local track = humanoid:LoadAnimation(anim)
+                track.Priority = Enum.AnimationPriority.Action
+                track:Play()
+                task.delay(21, function()
+                    pcall(function() track:Stop() end)
+                end)
+            end)
+        end)
+
+        task.spawn(function()
+            pcall(function()
+                require(rep.client.replication).aizen_awaken(char)
+            end)
         end)
     end)
 
@@ -394,7 +396,7 @@ task.spawn(function()
                 hotbar.Backpack.Hotbar.skill3.Base.ToolName.Text = "Goryu Feint"
                 hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Shatter Second"
 
-                hotbar.MagicHealth.Awakening.Text = "FLOW"
+                hotbar.MagicHealth.Awakening.Text = "AWAKEN"
                 hotbar.MagicHealth.TextLabel.Text = "Welcome to my Soul Society."
                 hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
                     ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 100, 255)),
