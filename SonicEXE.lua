@@ -18,7 +18,7 @@ end
 game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 local stopped = false
-local exeAwkOnCD = false
+local awkOnCD = false
 
 local trajectory = {}
 local metavisionEnabled = false
@@ -67,10 +67,7 @@ for i = 1, maxCircles do
     part.Transparency = 1
     part.Parent = visionFolder
     circlePool[i] = part
-    circleData[i] = {
-        spawnTime = 0,
-        active = false
-    }
+    circleData[i] = { spawnTime = 0, active = false }
 end
 
 local function hideAllMetavision()
@@ -149,16 +146,15 @@ local function updateMetavision()
         hideAllMetavision()
         return
     end
-    
     if #trajectory < 2 then
         hideAllMetavision()
         return
     end
-    
+
     local currentTick = tick()
     local beamIdx = 0
     local circleIdx = 0
-    
+
     for i = 1, maxBeams do
         local data = beamPool[i]
         if data.active then
@@ -170,7 +166,7 @@ local function updateMetavision()
             end
         end
     end
-    
+
     for i = 1, maxCircles do
         local data = circleData[i]
         if data.active then
@@ -182,10 +178,10 @@ local function updateMetavision()
             end
         end
     end
-    
+
     local step = math.max(1, math.floor(#trajectory / maxBeams))
     local lastPoint = nil
-    
+
     for i = 1, #trajectory, step do
         local point = trajectory[i]
         if point and point.Position then
@@ -193,12 +189,10 @@ local function updateMetavision()
                 beamIdx = beamIdx + 1
                 if beamIdx <= maxBeams then
                     local beamData = beamPool[beamIdx]
-                    
                     if not beamData.active then
                         beamData.spawnTime = currentTick
                         beamData.active = true
                     end
-                    
                     beamData.attachment0.WorldPosition = lastPoint.Position
                     beamData.attachment1.WorldPosition = point.Position
                     beamData.beam.Transparency = NumberSequence.new(0.3)
@@ -208,7 +202,7 @@ local function updateMetavision()
             lastPoint = point
         end
     end
-    
+
     local landing = getBallLandingPosition()
     if landing and landing.Position then
         circleIdx = circleIdx + 1
@@ -226,7 +220,7 @@ local function updateMetavision()
             p.Transparency = 0.3
         end
     end
-    
+
     local highest = getBallHighestPosition()
     if highest and highest.Position then
         circleIdx = circleIdx + 1
@@ -244,7 +238,7 @@ local function updateMetavision()
             p.Transparency = 0.3
         end
     end
-    
+
     local nearby = getNearbyPlayers(50)
     for j = 1, #nearby do
         local info = nearby[j]
@@ -417,7 +411,7 @@ local function TeleportShot(char, shootDelay)
     local root = char.HumanoidRootPart
     task.delay(shootDelay, function()
         if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
-        
+
         local function executeShot()
             remote:FireServer(buffer.fromstring(buffers["base"]), {
                 {"kick", 100, false, root.CFrame.LookVector * 1e19}
@@ -452,9 +446,9 @@ local function TeleportShot(char, shootDelay)
         end)()))
         root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
         task.wait(0.2)
-        
+
         executeShot()
-        
+
         task.wait(0.001)
         root.CFrame = originalCFrame
     end)
@@ -649,7 +643,7 @@ local function EXEStrike()
     pcall(function()
         require(rep.client.replication).DASTStrike(char)
     end)
-   
+
     task.delay(3.8, function()
         root.Anchored = false
         root.Velocity = Vector3.new(0, -200, 0)
@@ -657,7 +651,7 @@ local function EXEStrike()
     end)
 
     TeleportShot(char, 3.9)
-    
+
     Stun(5.2, false)
 
     task.delay(5.2, function()
@@ -669,11 +663,11 @@ end
 
 local function OpenMetavision()
     if stopped then return end
-    
+
     if not metavisionEnabled then
         metavisionEnabled = true
         DoCD("skill4", 15)
-        
+
         if not metavisionLoop then
             metavisionLoop = RunService.Heartbeat:Connect(updateMetavision)
         end
@@ -689,10 +683,10 @@ end
 
 local function ExeAwk()
     local char = plr.Character
-    if not char or Stunned() or exeAwkOnCD then return end
+    if not char or Stunned() or awkOnCD then return end
     if not HasBall() then return end
 
-    exeAwkOnCD = true
+    awkOnCD = true
 
     local humanoid = char.Humanoid
     local root = char.HumanoidRootPart
@@ -705,18 +699,27 @@ local function ExeAwk()
 
     task.spawn(function()
         pcall(function()
-            local song = rep.Resources.exe.awkSong
-            song.Volume = 12
-            require(rep.util.soundUtil):play(song, SoundService)
+            local sound = Instance.new("Sound")
+            sound.Name = "EXE_AwkSong"
+            sound.SoundId = "rbxassetid://9281508259"
+            sound.Volume = 12
+            sound.Parent = SoundService
+            sound.Looped = false
+            sound:Play()
             task.delay(129, function()
-                song:Stop()
+                pcall(function() sound:Stop() end)
+                pcall(function() sound:Destroy() end)
             end)
         end)
     end)
 
     task.spawn(function()
         pcall(function()
-            require(rep.util.animationUtil):loadAnimation(char, rep.Resources.exe.awk):Play()
+            local anim = Instance.new("Animation")
+            anim.AnimationId = "rbxassetid://131202945094680"
+            local track = humanoid:FindFirstChildOfClass("Animator"):LoadAnimation(anim)
+            track.Priority = Enum.AnimationPriority.Action4
+            track:Play(0)
         end)
     end)
 
@@ -728,12 +731,145 @@ local function ExeAwk()
 
     task.delay(21, function()
         if not char or not char.Parent then return end
-        
         TweenService:Create(humanoid, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {HipHeight = 0}):Play()
         plr:SetAttribute("style", savedStyle)
-        
         task.delay(30, function()
-            exeAwkOnCD = false
+            awkOnCD = false
+        end)
+    end)
+end
+
+local function AnimateVictim(victimRig)
+    if not victimRig then return end
+    
+    local victimHumanoid = victimRig:FindFirstChildOfClass("Humanoid")
+    if not victimHumanoid then return end
+    
+    local animator = victimHumanoid:FindFirstChildOfClass("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = victimHumanoid
+    end
+    
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://97339752363968"
+    local track = animator:LoadAnimation(anim)
+    track.Priority = Enum.AnimationPriority.Action4
+    track:Play(0)
+end
+
+local function ScanForVictim()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name == "Victim" then
+            local hum = obj:FindFirstChildOfClass("Humanoid")
+            if hum then
+                return obj
+            end
+        end
+    end
+    return nil
+end
+
+local function OffBall2011x()
+    local char = plr.Character
+    if not char or Stunned() or awkOnCD then return end
+    if HasBall() then return end
+
+    awkOnCD = true
+
+    local humanoid = char.Humanoid
+    local root = char.HumanoidRootPart
+    local savedStyle = plr:GetAttribute("style")
+
+    Stun(13.5, true)
+    plr:SetAttribute("style", "exe")
+
+    task.spawn(function()
+        pcall(function()
+            local sound = Instance.new("Sound")
+            sound.Name = "2011x_OffBallSong"
+            sound.SoundId = "rbxassetid://88429358187173"
+            sound.Volume = 1
+            sound.Parent = SoundService
+            sound.Looped = false
+            sound:Play()
+            task.delay(129, function()
+                pcall(function() sound:Stop() end)
+                pcall(function() sound:Destroy() end)
+            end)
+        end)
+    end)
+
+    task.spawn(function()
+        pcall(function()
+            local anim = Instance.new("Animation")
+            anim.AnimationId = "rbxassetid://91640149728350"
+            local track = humanoid:FindFirstChildOfClass("Animator"):LoadAnimation(anim)
+            track.Priority = Enum.AnimationPriority.Action4
+            track:Play(0)
+        end)
+    end)
+
+    local animatedVictims = {}
+    
+    local function TryAnimateVictim(victim)
+        if animatedVictims[victim] then return end
+        animatedVictims[victim] = true
+        AnimateVictim(victim)
+    end
+
+    local connections = {}
+    table.insert(connections, workspace.ChildAdded:Connect(function(child)
+        if child:IsA("Model") then
+            task.spawn(function()
+                task.wait(0.3)
+                local victim = child:FindFirstChild("Victim")
+                if victim then
+                    TryAnimateVictim(victim)
+                end
+            end)
+        end
+    end))
+
+    local effects = workspace:FindFirstChild("Effects")
+    if effects then
+        table.insert(connections, effects.ChildAdded:Connect(function(child)
+            if child:IsA("Model") then
+                task.spawn(function()
+                    task.wait(0.3)
+                    local victim = child:FindFirstChild("Victim")
+                    if victim then
+                        TryAnimateVictim(victim)
+                    end
+                end)
+            end
+        end))
+    end
+
+    task.spawn(function()
+        pcall(function()
+            require(rep.client.replication).x2011_tartarus(char)
+        end)
+    end)
+
+    task.spawn(function()
+        for i = 1, 30 do
+            task.wait(0.3)
+            if not char or not char.Parent then break end
+            local victim = ScanForVictim()
+            if victim then
+                TryAnimateVictim(victim)
+                break
+            end
+        end
+    end)
+
+    task.delay(13.5, function()
+        if not char or not char.Parent then return end
+        plr:SetAttribute("style", savedStyle)
+        for _, conn in ipairs(connections) do pcall(function() conn:Disconnect() end) end
+        task.delay(30, function()
+            awkOnCD = false
         end)
     end)
 end
@@ -741,18 +877,18 @@ end
 local function StopMoveset()
     stopped = true
     metavisionEnabled = false
-    
+
     if metavisionLoop then
         metavisionLoop:Disconnect()
         metavisionLoop = nil
     end
-    
+
     hideAllMetavision()
-    
+
     pcall(function()
         visionFolder:Destroy()
     end)
-    
+
     local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
     if hotbar then
         local buttons = hotbar.Backpack.Hotbar
@@ -770,7 +906,7 @@ local function Setup(char)
     repeat task.wait() until plr.Team ~= game.Teams.lobby
     task.wait(0.1)
     BlockOriginalSkills()
-    
+
     local hotbar = plr.PlayerGui:WaitForChild("Hotbar")
     local buttons = hotbar.Backpack.Hotbar
 
@@ -795,8 +931,20 @@ local function Setup(char)
     pcall(function()
         local mh = hotbar:FindFirstChild("MagicHealth")
         if mh and mh:FindFirstChild("Awakening") then
-            mh.Awakening.TouchTap:Connect(ExeAwk)
-            mh.Awakening.MouseButton1Click:Connect(ExeAwk)
+            mh.Awakening.TouchTap:Connect(function()
+                if HasBall() then
+                    ExeAwk()
+                else
+                    OffBall2011x()
+                end
+            end)
+            mh.Awakening.MouseButton1Click:Connect(function()
+                if HasBall() then
+                    ExeAwk()
+                else
+                    OffBall2011x()
+                end
+            end)
         end
     end)
 end
@@ -804,7 +952,7 @@ end
 Setup(plr.Character)
 
 plr.CharacterAdded:Connect(function(char)
-    exeAwkOnCD = false
+    awkOnCD = false
     task.wait(1)
     Setup(char)
 end)
@@ -837,7 +985,11 @@ UserInputService.InputBegan:Connect(function(input, bg)
     if bg or stopped then return end
 
     if input.KeyCode == Enum.KeyCode.G then
-        ExeAwk()
+        if HasBall() then
+            ExeAwk()
+        else
+            OffBall2011x()
+        end
     elseif input.KeyCode == Enum.KeyCode.One then
         Shortcut()
     elseif input.KeyCode == Enum.KeyCode.Two then
