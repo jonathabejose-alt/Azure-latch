@@ -352,9 +352,9 @@ local function DoCD(name, duration)
         btn.Cooldown.Visible = true
         btn.Cooldown.Size = UDim2.new(1, 0, -1, 0)
         TweenService:Create(btn.Cooldown, TweenInfo.new(duration, Enum.EasingStyle.Linear), {Size = UDim2.new(1, 0, 0, 0)}):Play()
-        task.delay(duration, function() 
+        task.delay(duration, function()
             if btn and btn.Cooldown then
-                btn.Cooldown.Visible = false 
+                btn.Cooldown.Visible = false
             end
         end)
     end
@@ -379,7 +379,7 @@ local function Stun(time, disableRotate)
             if char and char.state then
                 char.state.stun.Value = false
             end
-            if disableRotate then 
+            if disableRotate then
                 pcall(function() char:SetAttribute("disableRotate", false) end)
             end
         end)
@@ -525,7 +525,7 @@ local function Exterminate()
     if not grabbedByHBM then
         local grabbed = false
         local timeout = 0
-        local maxTimeout = 300 
+        local maxTimeout = 300
 
         while not grabbed and timeout < maxTimeout do
             local currentBall = workspace.Terrain:FindFirstChild("Ball")
@@ -690,7 +690,6 @@ local function ExeAwk()
 
     local humanoid = char.Humanoid
     local root = char.HumanoidRootPart
-    local savedStyle = plr:GetAttribute("style")
 
     Stun(21, true)
     plr:SetAttribute("style", "exe")
@@ -732,45 +731,13 @@ local function ExeAwk()
     task.delay(21, function()
         if not char or not char.Parent then return end
         TweenService:Create(humanoid, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {HipHeight = 0}):Play()
-        plr:SetAttribute("style", savedStyle)
         task.delay(30, function()
             awkOnCD = false
         end)
     end)
 end
 
-local function AnimateVictim(victimRig)
-    if not victimRig then return end
-    
-    local victimHumanoid = victimRig:FindFirstChildOfClass("Humanoid")
-    if not victimHumanoid then return end
-    
-    local animator = victimHumanoid:FindFirstChildOfClass("Animator")
-    if not animator then
-        animator = Instance.new("Animator")
-        animator.Parent = victimHumanoid
-    end
-    
-    local anim = Instance.new("Animation")
-    anim.AnimationId = "rbxassetid://97339752363968"
-    local track = animator:LoadAnimation(anim)
-    track.Priority = Enum.AnimationPriority.Action4
-    track:Play(0)
-end
-
-local function ScanForVictim()
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name == "Victim" then
-            local hum = obj:FindFirstChildOfClass("Humanoid")
-            if hum then
-                return obj
-            end
-        end
-    end
-    return nil
-end
-
-local function OffBall2011x()
+local function OffBallCombo()
     local char = plr.Character
     if not char or Stunned() or awkOnCD then return end
     if HasBall() then return end
@@ -779,9 +746,8 @@ local function OffBall2011x()
 
     local humanoid = char.Humanoid
     local root = char.HumanoidRootPart
-    local savedStyle = plr:GetAttribute("style")
 
-    Stun(13.5, true)
+    Stun(21, true)
     plr:SetAttribute("style", "exe")
 
     task.spawn(function()
@@ -811,22 +777,57 @@ local function OffBall2011x()
     end)
 
     local animatedVictims = {}
-    
-    local function TryAnimateVictim(victim)
-        if animatedVictims[victim] then return end
-        animatedVictims[victim] = true
-        AnimateVictim(victim)
+    local connections = {}
+
+    local function AnimateVictim(victimRig)
+        if not victimRig then return end
+        if animatedVictims[victimRig] then return end
+        animatedVictims[victimRig] = true
+
+        local victimHum = victimRig:FindFirstChildOfClass("Humanoid")
+        if not victimHum then
+            local animCtrl = victimRig:FindFirstChildOfClass("AnimationController")
+            if animCtrl then
+                local animator = animCtrl:FindFirstChildOfClass("Animator")
+                if not animator then
+                    animator = Instance.new("Animator")
+                    animator.Parent = animCtrl
+                end
+                local anim = Instance.new("Animation")
+                anim.AnimationId = "rbxassetid://97339752363968"
+                local track = animator:LoadAnimation(anim)
+                track.Priority = Enum.AnimationPriority.Action4
+                track:Play(0)
+            end
+            return
+        end
+
+        local animator = victimHum:FindFirstChildOfClass("Animator")
+        if not animator then
+            animator = Instance.new("Animator")
+            animator.Parent = victimHum
+        end
+
+        local anim = Instance.new("Animation")
+        anim.AnimationId = "rbxassetid://97339752363968"
+        local track = animator:LoadAnimation(anim)
+        track.Priority = Enum.AnimationPriority.Action4
+        track:Play(0)
     end
 
-    local connections = {}
+    local function CheckForVictim(parent)
+        if not parent or not parent.Parent then return end
+        local victim = parent:FindFirstChild("Victim")
+        if victim then
+            AnimateVictim(victim)
+        end
+    end
+
     table.insert(connections, workspace.ChildAdded:Connect(function(child)
         if child:IsA("Model") then
             task.spawn(function()
                 task.wait(0.3)
-                local victim = child:FindFirstChild("Victim")
-                if victim then
-                    TryAnimateVictim(victim)
-                end
+                CheckForVictim(child)
             end)
         end
     end))
@@ -837,14 +838,26 @@ local function OffBall2011x()
             if child:IsA("Model") then
                 task.spawn(function()
                     task.wait(0.3)
-                    local victim = child:FindFirstChild("Victim")
-                    if victim then
-                        TryAnimateVictim(victim)
-                    end
+                    CheckForVictim(child)
                 end)
             end
         end))
     end
+
+    task.spawn(function()
+        for i = 1, 30 do
+            task.wait(0.2)
+            if not char or not char.Parent then break end
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("Model") and obj.Name == "Victim" then
+                    local hum = obj:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        AnimateVictim(obj)
+                    end
+                end
+            end
+        end
+    end)
 
     task.spawn(function()
         pcall(function()
@@ -853,21 +866,16 @@ local function OffBall2011x()
     end)
 
     task.spawn(function()
-        for i = 1, 30 do
-            task.wait(0.3)
-            if not char or not char.Parent then break end
-            local victim = ScanForVictim()
-            if victim then
-                TryAnimateVictim(victim)
-                break
-            end
-        end
+        pcall(function()
+            require(rep.client.replication).evil_exeAwk(char)
+        end)
     end)
 
-    task.delay(13.5, function()
+    task.delay(21, function()
         if not char or not char.Parent then return end
-        plr:SetAttribute("style", savedStyle)
-        for _, conn in ipairs(connections) do pcall(function() conn:Disconnect() end) end
+        for _, conn in ipairs(connections) do
+            pcall(function() conn:Disconnect() end)
+        end
         task.delay(30, function()
             awkOnCD = false
         end)
@@ -907,6 +915,8 @@ local function Setup(char)
     task.wait(0.1)
     BlockOriginalSkills()
 
+    plr:SetAttribute("style", "exe")
+
     local hotbar = plr.PlayerGui:WaitForChild("Hotbar")
     local buttons = hotbar.Backpack.Hotbar
 
@@ -923,7 +933,7 @@ local function Setup(char)
     buttons.skill3.Base.Reuse.Text = "Ball"
     buttons.skill4.Base.Reuse.Text = "God Mode"
 
-    for i = 1, 4 do 
+    for i = 1, 4 do
         buttons["skill"..i].Base.Reuse.Visible = true
         buttons["skill"..i].Visible = true
     end
@@ -935,14 +945,14 @@ local function Setup(char)
                 if HasBall() then
                     ExeAwk()
                 else
-                    OffBall2011x()
+                    OffBallCombo()
                 end
             end)
             mh.Awakening.MouseButton1Click:Connect(function()
                 if HasBall() then
                     ExeAwk()
                 else
-                    OffBall2011x()
+                    OffBallCombo()
                 end
             end)
         end
@@ -988,7 +998,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
         if HasBall() then
             ExeAwk()
         else
-            OffBall2011x()
+            OffBallCombo()
         end
     elseif input.KeyCode == Enum.KeyCode.One then
         Shortcut()
