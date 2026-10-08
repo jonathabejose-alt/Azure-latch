@@ -2963,26 +2963,26 @@ local function startDaffyGK()
 end
 
 getgenv().GoalkeeperTab:AddToggle({
-    Text = "Auto GK (Celeron)",
+    Text = "Auto GK (v2)",
     Description = "V to toggle. Prediction-based.",
     Icon = "Lucide:shield",
     Flag = "SW_autoGKCeleron",
     Default = false,
     Callback = function(v)
-        if v then startCeleronGK() swNotify("Auto GK", "Celeron mode enabled.", 2)
-        else stopCeleronGK() swNotify("Auto GK", "Celeron mode disabled.", 2) end
+        if v then startCeleronGK() swNotify("Auto GK", "v2 mode enabled.", 2)
+        else stopCeleronGK() swNotify("Auto GK", "v2 mode disabled.", 2) end
     end,
 })
 
 getgenv().GoalkeeperTab:AddToggle({
-    Text = "Auto GK (Daffy)",
+    Text = "Auto GK (v1)",
     Description = "Camera or Body mode. F4 to disable.",
     Icon = "Lucide:shield",
     Flag = "SW_autoGKDaffy",
     Default = false,
     Callback = function(v)
-        if v then startDaffyGK() swNotify("Auto GK", "Daffy mode enabled. Pick mode.", 2)
-        else stopDaffyGK() swNotify("Auto GK", "Daffy mode disabled.", 2) end
+        if v then startDaffyGK() swNotify("Auto GK", "v1 mode enabled. Pick mode.", 2)
+        else stopDaffyGK() swNotify("Auto GK", "v1 mode disabled.", 2) end
     end,
 })
 
@@ -3565,7 +3565,7 @@ ChangelogSub:AddChangelogEntry({
     Version = "Scared Ware UI v0.3",
     Date = "Update",
     Changes = {
-        { Type = "Added", Text = "Goalkeeper tab with Auto GK (Celeron + Daffy)" },
+        { Type = "Added", Text = "Goalkeeper tab with Auto GK (v1 + v2)" },
         { Type = "Added", Text = "Exploits tab: Semi-Private, Instant Disconnect, GK Anywhere, Shachoko, Goal Farm" },
         { Type = "Added", Text = "Misc tab: Notification Suppression, No Cutscene, Invisibility V1/V2" },
         { Type = "Added", Text = "Kick Like Kaiser (hook)" },
