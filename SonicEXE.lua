@@ -290,7 +290,7 @@ local function watchMap()
         local gkb = map:FindFirstChild("gkbarriar")
         if gkb then watchGkBarriar(gkb) end
         map.ChildAdded:Connect(function(child)
-            if child.Name == "gkbarriar" then watchGkBarriar(child) end
+            if child.Name == "gkbarriar" then watchGkbarriar(child) end
         end)
         for _, name in ipairs({"Agoal", "Bgoal"}) do
             local g = map:FindFirstChild(name)
@@ -408,9 +408,10 @@ local function BlockOriginalSkills()
 end
 
 local function TeleportShot(char, shootDelay)
-    local root = char.HumanoidRootPart
     task.delay(shootDelay, function()
-        if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
+        if not char or not char.Parent then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root or not char:FindFirstChild("Ball") then return end
 
         local function executeShot()
             remote:FireServer(buffer.fromstring(buffers["base"]), {
@@ -425,32 +426,48 @@ local function TeleportShot(char, shootDelay)
 
         local originalCFrame = root.CFrame
         local lookVector = root.CFrame.LookVector
-        local team = char.state.team.Value
+        local team = char.state and char.state.team and char.state.team.Value
+        if not team then return end
         local oppositeTeam = team == "A" and "B" or "A"
-        local goal = workspace.map and workspace.map:FindFirstChild(oppositeTeam .. "goal")
-        local filterList = {char, workspace.Effects}
-        if goal then table.insert(filterList, goal) end
-        local gkBarrier = workspace.map and workspace.map:FindFirstChild("gkbarriar")
-        if gkBarrier then
-            local barrierPart = gkBarrier:FindFirstChild(oppositeTeam == "A" and "Abarriar" or "Bbarriar")
-            if barrierPart then table.insert(filterList, barrierPart) end
+
+        local filterList = {char}
+        local effects = workspace:FindFirstChild("Effects")
+        if effects then table.insert(filterList, effects) end
+        local map = workspace:FindFirstChild("map")
+        if map then
+            local goal = map:FindFirstChild(oppositeTeam .. "goal")
+            if goal then table.insert(filterList, goal) end
+            local gkBarrier = map:FindFirstChild("gkbarriar")
+            if gkBarrier then
+                local barrierPart = gkBarrier:FindFirstChild(oppositeTeam == "A" and "Abarriar" or "Bbarriar")
+                if barrierPart then table.insert(filterList, barrierPart) end
+            end
+            local gkCheck = map:FindFirstChild(oppositeTeam .. "GoalkeeperCheck")
+            if gkCheck then table.insert(filterList, gkCheck) end
         end
-        local gkCheck = workspace.map and workspace.map:FindFirstChild(oppositeTeam .. "GoalkeeperCheck")
-        if gkCheck then table.insert(filterList, gkCheck) end
-        char:PivotTo(CFrame.new((function()
-            local rayParams = RaycastParams.new()
-            rayParams.FilterDescendantsInstances = filterList
-            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-            local rayResult = workspace:Raycast(root.Position, lookVector * 1000, rayParams)
-            return rayResult and rayResult.Position - lookVector * 2 or root.Position
-        end)()))
-        root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
+
+        local rayParams = RaycastParams.new()
+        rayParams.FilterDescendantsInstances = filterList
+        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+        local rayResult = workspace:Raycast(root.Position, lookVector * 1000, rayParams)
+        local targetPos = rayResult and (rayResult.Position - lookVector * 2) or root.Position
+
+        if not root or not root.Parent then return end
+
+        root.CFrame = CFrame.new(targetPos, targetPos + lookVector) * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
+
         task.wait(0.2)
+
+        if not root or not root.Parent then return end
+        if not char:FindFirstChild("Ball") then return end
 
         executeShot()
 
-        task.wait(0.001)
-        root.CFrame = originalCFrame
+        task.wait(0.05)
+
+        if root and root.Parent then
+            root.CFrame = originalCFrame
+        end
     end)
 end
 
@@ -661,24 +678,45 @@ local function EXEStrike()
     end)
 end
 
-local function OpenMetavision()
-    if stopped then return end
+local function Altisimus()
+    local char = plr.Character
+    if not char or Stunned() or IsOnCD("skill4") then return end
+    if not HasBall() then return end
 
-    if not metavisionEnabled then
-        metavisionEnabled = true
-        DoCD("skill4", 15)
+    CancelMove()
+    DoCD("skill4", 8)
 
-        if not metavisionLoop then
-            metavisionLoop = RunService.Heartbeat:Connect(updateMetavision)
-        end
-    else
-        metavisionEnabled = false
-        if metavisionLoop then
-            metavisionLoop:Disconnect()
-            metavisionLoop = nil
-        end
-        hideAllMetavision()
-    end
+    local humanoid = char.Humanoid
+    local root = char.HumanoidRootPart
+
+    for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do track:Stop(0) end
+
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://87372679250302"
+    local track = humanoid:LoadAnimation(anim)
+    track.Priority = Enum.AnimationPriority.Action
+    track:Play()
+
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://71942851306233"
+    sound.Volume = 1.5
+    sound.Parent = root
+    sound:Play()
+    Debris:AddItem(sound, 6)
+
+    pcall(function()
+        require(rep.client.replication).x2011_altisimus(char)
+    end)
+
+    TeleportShot(char, 1.2)
+
+    Stun(2, false)
+
+    task.delay(2, function()
+        pcall(function()
+            track:Stop()
+        end)
+    end)
 end
 
 local function ExeAwk()
@@ -926,12 +964,12 @@ local function Setup(char)
     buttons.skill1.Base.MouseButton1Down:Connect(Shortcut)
     buttons.skill2.Base.MouseButton1Down:Connect(Exterminate)
     buttons.skill3.Base.MouseButton1Down:Connect(EXEStrike)
-    buttons.skill4.Base.MouseButton1Down:Connect(OpenMetavision)
+    buttons.skill4.Base.MouseButton1Down:Connect(Altisimus)
 
     buttons.skill1.Base.Reuse.Text = "Ball"
     buttons.skill2.Base.Reuse.Text = "Off Ball"
     buttons.skill3.Base.Reuse.Text = "Ball"
-    buttons.skill4.Base.Reuse.Text = "God Mode"
+    buttons.skill4.Base.Reuse.Text = "Ball"
 
     for i = 1, 4 do
         buttons["skill"..i].Base.Reuse.Visible = true
@@ -977,7 +1015,7 @@ task.spawn(function()
                 hotbar.Backpack.Hotbar.skill1.Base.ToolName.Text = "Shortcut"
                 hotbar.Backpack.Hotbar.skill2.Base.ToolName.Text = "Exterminate"
                 hotbar.Backpack.Hotbar.skill3.Base.ToolName.Text = "EXE Strike"
-                hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Open Metavision"
+                hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Altisimus"
 
                 hotbar.MagicHealth.Awakening.Text = "FLOW"
                 hotbar.MagicHealth.TextLabel.Text = "Many Souls To Play With."
@@ -1007,7 +1045,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
     elseif input.KeyCode == Enum.KeyCode.Three then
         EXEStrike()
     elseif input.KeyCode == Enum.KeyCode.Four then
-        OpenMetavision()
+        Altisimus()
     elseif input.KeyCode == Enum.KeyCode.F5 then
         StopMoveset()
     end
