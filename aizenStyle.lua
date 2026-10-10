@@ -74,45 +74,41 @@ local function DoCD(name, duration)
 end
 
 local function Stun(time, disableRotate)
-    local char = plr.Character
-    if not char then return end
-    if char.state then
-        char.state.stun.Value = true
-    end
-    if disableRotate then char:SetAttribute("disableRotate", true) end
-    local cfg = Instance.new("Configuration")
-    cfg:SetAttribute("speed", 0)
-    cfg:SetAttribute("jump", 0)
-    local movements = char:FindFirstChild("movements")
-    if movements then
-        cfg.Parent = movements
-    end
-    task.delay(time, function()
-        pcall(function()
-            if char and char.state then
-                char.state.stun.Value = false
-            end
-            if disableRotate then 
-                pcall(function() char:SetAttribute("disableRotate", false) end)
-            end
-        end)
-    end)
-    Debris:AddItem(cfg, time)
+	local char = plr.Character
+	if not char then return end
+	if char.state then
+		char.state.stun.Value = true
+	end
+	if disableRotate then char:SetAttribute("disableRotate", true) end
+	local cfg = Instance.new("Configuration")
+	cfg:SetAttribute("speed", 0)
+	cfg:SetAttribute("jump", 0)
+	local movements = char:FindFirstChild("movements")
+	if movements then
+		cfg.Parent = movements
+	end
+	task.delay(time, function()
+		pcall(function()
+			if char and char.state then
+				char.state.stun.Value = false
+			end
+			if disableRotate then
+				char:SetAttribute("disableRotate", false)
+			end
+		end)
+	end)
+	Debris:AddItem(cfg, time)
 end
 
 local function TeleportShot(char, shootDelay)
     local root = char.HumanoidRootPart
     task.delay(shootDelay, function()
         if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
-        
+
         local function executeShot()
-            if getgenv().SkillShoot then
-                ShootSkill()
-            else
-                remote:FireServer(buffer.fromstring(buffers["base"]), {
-                    {"kick", 100, false, root.CFrame.LookVector * 1e19}
-                })
-            end
+            remote:FireServer(buffer.fromstring(buffers["base"]), {
+                {"kick", 100, false, root.CFrame.LookVector * 1e19}
+            })
         end
 
         if getgenv().LegitMode then
@@ -123,6 +119,7 @@ local function TeleportShot(char, shootDelay)
         local originalCFrame = root.CFrame
         local lookVector = root.CFrame.LookVector
         local team = char.state.team.Value
+
         local oppositeTeam = team == "A" and "B" or "A"
         local goal = workspace.map and workspace.map:FindFirstChild(oppositeTeam .. "goal")
         local filterList = {char, workspace.Effects}
@@ -131,24 +128,24 @@ local function TeleportShot(char, shootDelay)
         if gkBarrier then
             local barrierPart = gkBarrier:FindFirstChild(oppositeTeam == "A" and "Abarriar" or "Bbarriar")
             if barrierPart then table.insert(filterList, barrierPart) end
+
         end
         local gkCheck = workspace.map and workspace.map:FindFirstChild(oppositeTeam .. "GoalkeeperCheck")
         if gkCheck then table.insert(filterList, gkCheck) end
-        pcall(function()
-            char:PivotTo(CFrame.new((function()
-                local rayParams = RaycastParams.new()
-                rayParams.FilterDescendantsInstances = filterList
-                rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-                local rayResult = workspace:Raycast(root.Position, lookVector * 1000, rayParams)
-                return rayResult and rayResult.Position - lookVector * 2 or root.Position
-            end)()))
-            root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
-        end)
+        char:PivotTo(CFrame.new((function()
+            local rayParams = RaycastParams.new()
+            rayParams.FilterDescendantsInstances = filterList
+            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+            local rayResult = workspace:Raycast(root.Position, lookVector * 1000, rayParams)
+            return rayResult and rayResult.Position - lookVector * 2 or root.Position
+        end)()))
+        root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
+
         task.wait(0.2)
-        
+
         executeShot()
-        
-        task.wait(0.001)
+
+        task.wait(0.003)
         root.CFrame = originalCFrame
     end)
 end
