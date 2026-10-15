@@ -1,4 +1,3 @@
-getgenv().HBM = 90
 
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
