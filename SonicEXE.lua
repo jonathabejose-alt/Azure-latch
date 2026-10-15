@@ -1,13 +1,18 @@
-local plr = game.Players.LocalPlayer
-local rep = game:GetService("ReplicatedStorage")
-local remote = rep:WaitForChild("ByteNetReliable")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local Debris = game:GetService("Debris")
+getgenv().HBM = 90
+
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
+local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local plr = Players.LocalPlayer
+local rep = game:GetService("ReplicatedStorage")
+local other = rep.client.replication.otherReplication
+local V2011 = require(other["2011xVFX"])
+local VSONIC = require(other.sonicVFX)
+local REPL = require(rep.client.replication)
+local remote = rep:WaitForChild("ByteNetReliable")
 
 local buffers = {}
 loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
@@ -17,271 +22,175 @@ for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()
 end
 game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
+local SHOT_ANIM = "rbxassetid://99881509878056"
+local SHOT_SOUND = "rbxassetid://126011406873336"
+
 local stopped = false
 local awkOnCD = false
+local buttonConnections = {}
+local awakenConnections = {}
 
-local trajectory = {}
-local metavisionEnabled = false
-local metavisionLoop = nil
-
-local visionFolder = Instance.new("Folder")
-visionFolder.Name = "MetavisionParts"
-visionFolder.Parent = Workspace
-
-local beamPool = {}
-local circlePool = {}
-local circleData = {}
-local maxBeams = 60
-local maxCircles = 30
-local fadeDuration = 8
-
-for i = 1, maxBeams do
-    local beam = Instance.new("Beam")
-    beam.Width0 = 0.25
-    beam.Width1 = 0.25
-    beam.FaceCamera = true
-    beam.Transparency = NumberSequence.new(1)
-    beam.Color = ColorSequence.new(Color3.fromRGB(0, 150, 255))
-    beam.Parent = visionFolder
-    beamPool[i] = {
-        beam = beam,
-        attachment0 = Instance.new("Attachment"),
-        attachment1 = Instance.new("Attachment"),
-        spawnTime = 0,
-        active = false
-    }
-    beamPool[i].attachment0.Parent = visionFolder
-    beamPool[i].attachment1.Parent = visionFolder
-    beam.Attachment0 = beamPool[i].attachment0
-    beam.Attachment1 = beamPool[i].attachment1
+local function HasBall()
+	return plr.Character and plr.Character:FindFirstChild("Ball")
 end
 
-for i = 1, maxCircles do
-    local part = Instance.new("Part")
-    part.Anchored = true
-    part.CanCollide = false
-    part.CanTouch = false
-    part.CanQuery = false
-    part.Material = Enum.Material.Neon
-    part.Shape = Enum.PartType.Ball
-    part.Transparency = 1
-    part.Parent = visionFolder
-    circlePool[i] = part
-    circleData[i] = { spawnTime = 0, active = false }
+local function Stunned()
+	local char = plr.Character
+	if not char then return true end
+	local state = char:FindFirstChild("state")
+	if not state then return true end
+	local stun = state:FindFirstChild("stun")
+	if not stun then return true end
+	return stun.Value
 end
 
-local function hideAllMetavision()
-    for i = 1, maxBeams do
-        beamPool[i].beam.Transparency = NumberSequence.new(1)
-        beamPool[i].active = false
-        beamPool[i].spawnTime = 0
-    end
-    for i = 1, maxCircles do
-        circlePool[i].Transparency = 1
-        circleData[i].active = false
-        circleData[i].spawnTime = 0
-    end
+local function CancelMove()
+	local char = plr.Character
+	if char then
+		local state = char:FindFirstChild("state")
+		if state then
+			local stun = state:FindFirstChild("stun")
+			if stun then
+				stun.Value = true
+				task.wait(0.04)
+				stun.Value = false
+			end
+		end
+	end
 end
 
-local function getBallLandingPosition()
-    if #trajectory == 0 then return nil end
-    local currentTime = workspace:GetServerTimeNow()
-    local lowestPoint = nil
-    local lowestY = math.huge
-    for _, point in ipairs(trajectory) do
-        if point.Age and point.Position and point.Age > currentTime and point.Position.Y < lowestY then
-            lowestY = point.Position.Y
-            lowestPoint = point
-        end
-    end
-    return lowestPoint
+local function GetBar()
+	local gui = plr.PlayerGui:FindFirstChild("Hotbar")
+	if not gui then return nil end
+	local backpack = gui:FindFirstChild("Backpack")
+	if not backpack then return nil end
+	return backpack:FindFirstChild("Hotbar")
 end
 
-local function getBallHighestPosition()
-    if #trajectory == 0 then return nil end
-    local currentTime = workspace:GetServerTimeNow()
-    local highestPoint = nil
-    local highestY = -math.huge
-    for _, point in ipairs(trajectory) do
-        if point.Age and point.Position and point.Age > currentTime and point.Position.Y > highestY then
-            highestY = point.Position.Y
-            highestPoint = point
-        end
-    end
-    return highestPoint
+local function IsOnCD(name)
+	local bar = GetBar()
+	if not bar then return false end
+	local btn = bar:FindFirstChild(name)
+	if btn and btn:FindFirstChild("Cooldown") then return btn.Cooldown.Visible end
+	return false
 end
 
-local function getNearbyPlayers(radius)
-    local char = plr.Character
-    if not char then return {} end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return {} end
-    local nearby = {}
-    local pos = hrp.Position
-    local playersList = Players:GetPlayers()
-    for i = 1, #playersList do
-        local p = playersList[i]
-        if p ~= plr then
-            local c = p.Character
-            if c then
-                local r = c:FindFirstChild("HumanoidRootPart")
-                if r then
-                    local dist = (r.Position - pos).Magnitude
-                    if dist <= radius then
-                        nearby[#nearby + 1] = {
-                            position = r.Position,
-                            hasBall = c:FindFirstChild("Ball") ~= nil,
-                            distance = dist
-                        }
-                    end
-                end
-            end
-        end
-    end
-    return nearby
+local function DoCD(name, duration)
+	local bar = GetBar()
+	if not bar then return end
+	local btn = bar:FindFirstChild(name)
+	if btn and btn:FindFirstChild("Cooldown") then
+		btn.Cooldown.Visible = true
+		btn.Cooldown.Size = UDim2.new(1, 0, -1, 0)
+		TweenService:Create(btn.Cooldown, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+			Size = UDim2.new(1, 0, 0, 0),
+		}):Play()
+		task.delay(duration, function()
+			if btn and btn.Cooldown then
+				btn.Cooldown.Visible = false
+			end
+		end)
+	end
 end
 
-local function updateMetavision()
-    if stopped or not metavisionEnabled then
-        hideAllMetavision()
-        return
-    end
-    if #trajectory < 2 then
-        hideAllMetavision()
-        return
-    end
+local function SendKick(power, direction)
+	remote:FireServer(buffer.fromstring(buffers["base"]))
+end
 
-    local currentTick = tick()
-    local beamIdx = 0
-    local circleIdx = 0
+local function SendGrab()
+	remote:FireServer(buffer.fromstring(buffers["grabball"]))
+end
 
-    for i = 1, maxBeams do
-        local data = beamPool[i]
-        if data.active then
-            local elapsed = currentTick - data.spawnTime
-            if elapsed >= fadeDuration then
-                data.beam.Transparency = NumberSequence.new(1)
-                data.active = false
-                data.spawnTime = 0
-            end
-        end
-    end
+local function StopTracks(humanoid)
+	if not humanoid then return end
+	for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
+		track:Stop(0)
+	end
+end
 
-    for i = 1, maxCircles do
-        local data = circleData[i]
-        if data.active then
-            local elapsed = currentTick - data.spawnTime
-            if elapsed >= fadeDuration then
-                circlePool[i].Transparency = 1
-                data.active = false
-                data.spawnTime = 0
-            end
-        end
-    end
+local function PlayAnimation(humanoid, animationId, priority)
+	local anim = Instance.new("Animation")
+	anim.AnimationId = animationId
+	local track = humanoid:LoadAnimation(anim)
+	track.Priority = priority or Enum.AnimationPriority.Action
+	track:Play()
+	return track
+end
 
-    local step = math.max(1, math.floor(#trajectory / maxBeams))
-    local lastPoint = nil
+local function PlaySound(root, soundId, volume, lifetime)
+	local sound = Instance.new("Sound")
+	sound.SoundId = soundId
+	sound.Volume = volume
+	sound.Parent = root
+	sound:Play()
+	Debris:AddItem(sound, lifetime)
+	return sound
+end
 
-    for i = 1, #trajectory, step do
-        local point = trajectory[i]
-        if point and point.Position then
-            if lastPoint then
-                beamIdx = beamIdx + 1
-                if beamIdx <= maxBeams then
-                    local beamData = beamPool[beamIdx]
-                    if not beamData.active then
-                        beamData.spawnTime = currentTick
-                        beamData.active = true
-                    end
-                    beamData.attachment0.WorldPosition = lastPoint.Position
-                    beamData.attachment1.WorldPosition = point.Position
-                    beamData.beam.Transparency = NumberSequence.new(0.3)
-                    beamData.beam.Color = ColorSequence.new(Color3.fromRGB(0, 180, 255))
-                end
-            end
-            lastPoint = point
-        end
-    end
+local function Stun(time, disableRotate)
+	local char = plr.Character
+	if not char then return end
+	if char.state then
+		char.state.stun.Value = true
+	end
+	if disableRotate then char:SetAttribute("disableRotate", true) end
+	local cfg = Instance.new("Configuration")
+	cfg:SetAttribute("speed", 0)
+	cfg:SetAttribute("jump", 0)
+	local movements = char:FindFirstChild("movements")
+	if movements then
+		cfg.Parent = movements
+	end
+	task.delay(time, function()
+		pcall(function()
+			if char and char.state then
+				char.state.stun.Value = false
+			end
+			if disableRotate then
+				char:SetAttribute("disableRotate", false)
+			end
+		end)
+	end)
+	Debris:AddItem(cfg, time)
+end
 
-    local landing = getBallLandingPosition()
-    if landing and landing.Position then
-        circleIdx = circleIdx + 1
-        if circleIdx <= maxCircles then
-            local data = circleData[circleIdx]
-            if not data.active then
-                data.spawnTime = currentTick
-                data.active = true
-            end
-            local p = circlePool[circleIdx]
-            p.Shape = Enum.PartType.Ball
-            p.Size = Vector3.new(1.5, 1.5, 1.5)
-            p.Position = landing.Position
-            p.Color = Color3.fromRGB(0, 255, 100)
-            p.Transparency = 0.3
-        end
-    end
 
-    local highest = getBallHighestPosition()
-    if highest and highest.Position then
-        circleIdx = circleIdx + 1
-        if circleIdx <= maxCircles then
-            local data = circleData[circleIdx]
-            if not data.active then
-                data.spawnTime = currentTick
-                data.active = true
-            end
-            local p = circlePool[circleIdx]
-            p.Shape = Enum.PartType.Ball
-            p.Size = Vector3.new(1, 1, 1)
-            p.Position = highest.Position
-            p.Color = Color3.fromRGB(255, 0, 200)
-            p.Transparency = 0.3
-        end
-    end
-
-    local nearby = getNearbyPlayers(50)
-    for j = 1, #nearby do
-        local info = nearby[j]
-        circleIdx = circleIdx + 1
-        if circleIdx <= maxCircles then
-            local data = circleData[circleIdx]
-            if not data.active then
-                data.spawnTime = currentTick
-                data.active = true
-            end
-            local p = circlePool[circleIdx]
-            p.Shape = Enum.PartType.Block
-            p.Position = info.position
-            if info.hasBall then
-                p.Color = Color3.fromRGB(255, 0, 0)
-                p.Size = Vector3.new(3, 4, 3)
-            else
-                p.Color = Color3.fromRGB(0, 255, 200)
-                p.Size = Vector3.new(2, 3, 2)
-            end
-            p.Transparency = 0.5
-        end
-    end
+local function BlockOriginalSkills()
+	task.wait(0.1)
+	local bar = GetBar()
+	if not bar then return end
+	for i = 1, 5 do
+		local skill = bar:FindFirstChild("skill" .. i)
+		if skill and skill:FindFirstChild("Base") then
+			local base = skill.Base
+			base.Active = false
+			base.AutoButtonColor = false
+			pcall(function()
+				base.MouseButton1Click:DisconnectAll()
+				base.MouseButton1Down:DisconnectAll()
+			end)
+		end
+	end
 end
 
 local function setupBarrierDisable(part)
-    if not part then return end
-    part.CanCollide = false
-    part.AncestryChanged:Connect(function()
-        if part and part.Parent then
-            part.CanCollide = false
-        end
-    end)
+	if not part then return end
+	part.CanCollide = false
+	part.AncestryChanged:Connect(function()
+		if part and part.Parent then
+			part.CanCollide = false
+		end
+	end)
 end
 
 local function watchGkBarriar(gkb)
-    for _, name in ipairs({"Abarriar", "Bbarriar"}) do
-        local p = gkb:FindFirstChild(name)
-        if p then setupBarrierDisable(p) end
-        gkb.ChildAdded:Connect(function(child)
-            if child.Name == name then setupBarrierDisable(child) end
-        end)
-    end
+	for _, name in ipairs({"Abarriar", "Bbarriar"}) do
+		local p = gkb:FindFirstChild(name)
+		if p then setupBarrierDisable(p) end
+		gkb.ChildAdded:Connect(function(child)
+			if child.Name == name then setupBarrierDisable(child) end
+		end)
+	end
 end
 
 local function watchMap()
@@ -290,7 +199,7 @@ local function watchMap()
         local gkb = map:FindFirstChild("gkbarriar")
         if gkb then watchGkBarriar(gkb) end
         map.ChildAdded:Connect(function(child)
-            if child.Name == "gkbarriar" then watchGkbarriar(child) end
+            if child.Name == "gkbarriar" then watchGkBarriar(child) end
         end)
         for _, name in ipairs({"Agoal", "Bgoal"}) do
             local g = map:FindFirstChild(name)
@@ -304,114 +213,13 @@ end
 
 task.spawn(watchMap)
 workspace.ChildAdded:Connect(function(child)
-    if child.Name == "map" then watchMap() end
+	if child.Name == "map" then watchMap() end
 end)
 
-local function HasBall()
-    return plr.Character and plr.Character:FindFirstChild("Ball")
-end
-
-local function Stunned()
-    local char = plr.Character
-    if not char then return true end
-    local state = char:FindFirstChild("state")
-    if not state then return true end
-    local stun = state:FindFirstChild("stun")
-    if not stun then return true end
-    return stun.Value
-end
-
-local function CancelMove()
-    local char = plr.Character
-    if char then
-        local state = char:FindFirstChild("state")
-        if state then
-            local stun = state:FindFirstChild("stun")
-            if stun then
-                stun.Value = true
-                task.wait(0.04)
-                stun.Value = false
-            end
-        end
-    end
-end
-
-local function IsOnCD(name)
-    local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
-    if not hotbar then return false end
-    local btn = hotbar.Backpack.Hotbar:FindFirstChild(name)
-    if btn and btn:FindFirstChild("Cooldown") then return btn.Cooldown.Visible end
-    return false
-end
-
-local function DoCD(name, duration)
-    local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
-    if not hotbar then return end
-    local btn = hotbar.Backpack.Hotbar:FindFirstChild(name)
-    if btn and btn:FindFirstChild("Cooldown") then
-        btn.Cooldown.Visible = true
-        btn.Cooldown.Size = UDim2.new(1, 0, -1, 0)
-        TweenService:Create(btn.Cooldown, TweenInfo.new(duration, Enum.EasingStyle.Linear), {Size = UDim2.new(1, 0, 0, 0)}):Play()
-        task.delay(duration, function()
-            if btn and btn.Cooldown then
-                btn.Cooldown.Visible = false
-            end
-        end)
-    end
-end
-
-local function Stun(time, disableRotate)
-    local char = plr.Character
-    if not char then return end
-    if char.state then
-        char.state.stun.Value = true
-    end
-    if disableRotate then char:SetAttribute("disableRotate", true) end
-    local cfg = Instance.new("Configuration")
-    cfg:SetAttribute("speed", 0)
-    cfg:SetAttribute("jump", 0)
-    local movements = char:FindFirstChild("movements")
-    if movements then
-        cfg.Parent = movements
-    end
-    task.delay(time, function()
-        pcall(function()
-            if char and char.state then
-                char.state.stun.Value = false
-            end
-            if disableRotate then
-                pcall(function() char:SetAttribute("disableRotate", false) end)
-            end
-        end)
-    end)
-    Debris:AddItem(cfg, time)
-end
-
-local function BlockOriginalSkills()
-    task.wait(0.1)
-    local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
-    if hotbar then
-        local buttons = hotbar.Backpack.Hotbar
-        for i = 1, 5 do
-            local skill = buttons:FindFirstChild("skill" .. i)
-            if skill and skill:FindFirstChild("Base") then
-                local base = skill.Base
-                base.Active = false
-                base.AutoButtonColor = false
-                pcall(function()
-                    base.MouseButton1Click:DisconnectAll()
-                    base.MouseButton1Down:DisconnectAll()
-                end)
-            end
-        end
-    end
-end
-
 local function TeleportShot(char, shootDelay)
+    local root = char.HumanoidRootPart
     task.delay(shootDelay, function()
-        if not char or not char.Parent then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root or not char:FindFirstChild("Ball") then return end
+        if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
 
         local function executeShot()
             remote:FireServer(buffer.fromstring(buffers["base"]), {
@@ -426,87 +234,60 @@ local function TeleportShot(char, shootDelay)
 
         local originalCFrame = root.CFrame
         local lookVector = root.CFrame.LookVector
-        local team = char.state and char.state.team and char.state.team.Value
-        if not team then return end
+        local team = char.state.team.Value
+
         local oppositeTeam = team == "A" and "B" or "A"
+        local goal = workspace.map and workspace.map:FindFirstChild(oppositeTeam .. "goal")
+        local filterList = {char, workspace.Effects}
+        if goal then table.insert(filterList, goal) end
+        local gkBarrier = workspace.map and workspace.map:FindFirstChild("gkbarriar")
+        if gkBarrier then
+            local barrierPart = gkBarrier:FindFirstChild(oppositeTeam == "A" and "Abarriar" or "Bbarriar")
+            if barrierPart then table.insert(filterList, barrierPart) end
 
-        local filterList = {char}
-        local effects = workspace:FindFirstChild("Effects")
-        if effects then table.insert(filterList, effects) end
-        local map = workspace:FindFirstChild("map")
-        if map then
-            local goal = map:FindFirstChild(oppositeTeam .. "goal")
-            if goal then table.insert(filterList, goal) end
-            local gkBarrier = map:FindFirstChild("gkbarriar")
-            if gkBarrier then
-                local barrierPart = gkBarrier:FindFirstChild(oppositeTeam == "A" and "Abarriar" or "Bbarriar")
-                if barrierPart then table.insert(filterList, barrierPart) end
-            end
-            local gkCheck = map:FindFirstChild(oppositeTeam .. "GoalkeeperCheck")
-            if gkCheck then table.insert(filterList, gkCheck) end
         end
-
-        local rayParams = RaycastParams.new()
-        rayParams.FilterDescendantsInstances = filterList
-        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-        local rayResult = workspace:Raycast(root.Position, lookVector * 1000, rayParams)
-        local targetPos = rayResult and (rayResult.Position - lookVector * 2) or root.Position
-
-        if not root or not root.Parent then return end
-
-        root.CFrame = CFrame.new(targetPos, targetPos + lookVector) * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
+        local gkCheck = workspace.map and workspace.map:FindFirstChild(oppositeTeam .. "GoalkeeperCheck")
+        if gkCheck then table.insert(filterList, gkCheck) end
+        char:PivotTo(CFrame.new((function()
+            local rayParams = RaycastParams.new()
+            rayParams.FilterDescendantsInstances = filterList
+            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+            local rayResult = workspace:Raycast(root.Position, lookVector * 1000, rayParams)
+            return rayResult and rayResult.Position - lookVector * 2 or root.Position
+        end)()))
+        root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
 
         task.wait(0.2)
 
-        if not root or not root.Parent then return end
-        if not char:FindFirstChild("Ball") then return end
-
         executeShot()
 
-        task.wait(0.05)
-
-        if root and root.Parent then
-            root.CFrame = originalCFrame
-        end
+        task.wait(0.003)
+        root.CFrame = originalCFrame
     end)
 end
 
 local function Shortcut()
-    local char = plr.Character
-    if not char or Stunned() or IsOnCD("skill1") then return end
+	if stopped then return end
+	local char = plr.Character
+	if not char or Stunned() or IsOnCD("skill1") then return end
 
-    CancelMove()
-    DoCD("skill1", 1)
+	CancelMove()
+	DoCD("skill1", 1)
 
-    local humanoid = char.Humanoid
-    local root = char.HumanoidRootPart
+	local humanoid = char.Humanoid
+	local root = char.HumanoidRootPart
 
-    for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do track:Stop(0) end
+	StopTracks(humanoid)
+	local track = PlayAnimation(humanoid, "rbxassetid://116455589260954")
 
-    local anim = Instance.new("Animation")
-    anim.AnimationId = "rbxassetid://116455589260954"
-    local track = humanoid:LoadAnimation(anim)
-    track.Priority = Enum.AnimationPriority.Action
-    track:Play()
+	pcall(function() REPL.DashSuper(char) end)
+	PlaySound(root, "rbxassetid://111414558186727", 2, 3)
 
-    pcall(function()
-        require(rep.client.replication).DashSuper(char)
-    end)
+	Stun(0.3, false)
 
-    local sound = Instance.new("Sound")
-    sound.SoundId = "rbxassetid://111414558186727"
-    sound.Volume = 2
-    sound.Parent = root
-    sound:Play()
-    Debris:AddItem(sound, 3)
-
-    Stun(0.3, false)
-
-    task.delay(1.5, function()
-        pcall(function()
-            track:Stop()
-        end)
-    end)
+	task.delay(1.5, function()
+		pcall(function() track:Stop() end)
+	end)
 end
 
 local function Exterminate()
@@ -679,376 +460,430 @@ local function EXEStrike()
 end
 
 local function Altisimus()
-    local char = plr.Character
-    if not char or Stunned() or IsOnCD("skill4") then return end
-    if not HasBall() then return end
+	if stopped then return end
+	local char = plr.Character
+	if not char or Stunned() or IsOnCD("skill4") then return end
+	if not HasBall() then return end
 
-    CancelMove()
-    DoCD("skill4", 8)
+	CancelMove()
+	DoCD("skill4", 8)
 
-    local humanoid = char.Humanoid
-    local root = char.HumanoidRootPart
+	local humanoid = char.Humanoid
+	local root = char.HumanoidRootPart
 
-    for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do track:Stop(0) end
+	StopTracks(humanoid)
+	local track = PlayAnimation(humanoid, "rbxassetid://87372679250302")
 
-    local anim = Instance.new("Animation")
-    anim.AnimationId = "rbxassetid://87372679250302"
-    local track = humanoid:LoadAnimation(anim)
-    track.Priority = Enum.AnimationPriority.Action
-    track:Play()
+	PlaySound(root, "rbxassetid://71942851306233", 1.5, 6)
 
-    local sound = Instance.new("Sound")
-    sound.SoundId = "rbxassetid://71942851306233"
-    sound.Volume = 1.5
-    sound.Parent = root
-    sound:Play()
-    Debris:AddItem(sound, 6)
 
-    pcall(function()
-        require(rep.client.replication).x2011_altisimus(char)
-    end)
+	pcall(function() REPL.x2011_altisimus(char) end)
+    
 
-    TeleportShot(char, 1.2)
+	TeleportShot(char, 1.2)
+	Stun(2, false)
 
-    Stun(2, false)
+	task.delay(2, function()
+		pcall(function() track:Stop() end)
+	end)
+end
 
-    task.delay(2, function()
-        pcall(function()
-            track:Stop()
-        end)
-    end)
+local function Shot()
+	if stopped then return end
+	local char = plr.Character
+	if not char or Stunned() or IsOnCD("skill5") then return end
+	if not HasBall() then return end
+    Stun(1.7, true)
+
+	CancelMove()
+	DoCD("skill5", 1)
+
+	local humanoid = char.Humanoid
+	local root = char.HumanoidRootPart
+	if not humanoid or not root then return end
+
+	Stun(0.7, true)
+	PlaySound(root, SHOT_SOUND, 2, 4)
+	pcall(function() VSONIC.sonic_whirlwind_shot(char, 6) end)
+	TeleportShot(char, 1.2)
+
+	local shotTrack = PlayAnimation(humanoid, SHOT_ANIM, Enum.AnimationPriority.Action4)
+	task.delay(3, function()
+		pcall(function() shotTrack:Stop() end)
+	end)
 end
 
 local function ExeAwk()
-    local char = plr.Character
-    if not char or Stunned() or awkOnCD then return end
-    if not HasBall() then return end
+	if stopped then return end
+	local char = plr.Character
+	if not char or Stunned() or awkOnCD then return end
+	if not HasBall() then return end
 
-    awkOnCD = true
+	awkOnCD = true
 
-    local humanoid = char.Humanoid
-    local root = char.HumanoidRootPart
+	local humanoid = char.Humanoid
 
-    Stun(21, true)
-    plr:SetAttribute("style", "exe")
+	Stun(21, true)
+	plr:SetAttribute("style", "exe")
 
-    TweenService:Create(humanoid, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {HipHeight = 25}):Play()
+	TweenService:Create(humanoid, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {HipHeight = 25}):Play()
 
-    task.spawn(function()
-        pcall(function()
-            local sound = Instance.new("Sound")
-            sound.Name = "EXE_AwkSong"
-            sound.SoundId = "rbxassetid://9281508259"
-            sound.Volume = 12
-            sound.Parent = SoundService
-            sound.Looped = false
-            sound:Play()
-            task.delay(129, function()
-                pcall(function() sound:Stop() end)
-                pcall(function() sound:Destroy() end)
-            end)
-        end)
-    end)
+	task.spawn(function()
+		pcall(function()
+			local sound = Instance.new("Sound")
+			sound.Name = "EXE_AwkSong"
+			sound.SoundId = "rbxassetid://9281508259"
+			sound.Volume = 10
+			sound.Parent = SoundService
+			sound.Looped = false
+			sound:Play()
+			task.delay(129, function()
+				pcall(function() sound:Stop() end)
+				pcall(function() sound:Destroy() end)
+			end)
+		end)
+	end)
 
-    task.spawn(function()
-        pcall(function()
-            local anim = Instance.new("Animation")
-            anim.AnimationId = "rbxassetid://131202945094680"
-            local track = humanoid:FindFirstChildOfClass("Animator"):LoadAnimation(anim)
-            track.Priority = Enum.AnimationPriority.Action4
-            track:Play(0)
-        end)
-    end)
+	task.spawn(function()
+		pcall(function()
+			local anim = Instance.new("Animation")
+			anim.AnimationId = "rbxassetid://131202945094680"
+			local track = humanoid:FindFirstChildOfClass("Animator"):LoadAnimation(anim)
+			track.Priority = Enum.AnimationPriority.Action4
+			track:Play(0)
+		end)
+	end)
 
-    task.spawn(function()
-        pcall(function()
-            require(rep.client.replication).exeAwk(char)
-        end)
-    end)
 
-    task.delay(21, function()
-        if not char or not char.Parent then return end
-        TweenService:Create(humanoid, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {HipHeight = 0}):Play()
-        task.delay(30, function()
-            awkOnCD = false
-        end)
-    end)
+	task.spawn(function()
+		pcall(function() REPL.exeAwk(char) end)
+	end)
+
+	task.delay(21, function()
+		pcall(function()
+			TweenService:Create(humanoid, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {HipHeight = 0}):Play()
+		end)
+		task.delay(30, function()
+			awkOnCD = false
+		end)
+	end)
 end
 
 local function OffBallCombo()
-    local char = plr.Character
-    if not char or Stunned() or awkOnCD then return end
-    if HasBall() then return end
+	if stopped then return end
+	local char = plr.Character
+	if not char or Stunned() or awkOnCD then return end
+	if HasBall() then return end
 
-    awkOnCD = true
+	awkOnCD = true
 
-    local humanoid = char.Humanoid
-    local root = char.HumanoidRootPart
+	local humanoid = char.Humanoid
 
-    Stun(21, true)
-    plr:SetAttribute("style", "exe")
+	Stun(21, true)
+	plr:SetAttribute("style", "exe")
 
-    task.spawn(function()
-        pcall(function()
-            local sound = Instance.new("Sound")
-            sound.Name = "2011x_OffBallSong"
-            sound.SoundId = "rbxassetid://88429358187173"
-            sound.Volume = 1
-            sound.Parent = SoundService
-            sound.Looped = false
-            sound:Play()
-            task.delay(129, function()
-                pcall(function() sound:Stop() end)
-                pcall(function() sound:Destroy() end)
-            end)
-        end)
-    end)
+	task.spawn(function()
+		pcall(function()
+			local sound = Instance.new("Sound")
+			sound.Name = "2011x_OffBallSong"
+			sound.SoundId = "rbxassetid://88429358187173"
+			sound.Volume = 1
+			sound.Parent = SoundService
+			sound.Looped = false
+			sound:Play()
+			task.delay(129, function()
+				pcall(function() sound:Stop() end)
+				pcall(function() sound:Destroy() end)
+			end)
+		end)
+	end)
 
-    task.spawn(function()
-        pcall(function()
-            local anim = Instance.new("Animation")
-            anim.AnimationId = "rbxassetid://91640149728350"
-            local track = humanoid:FindFirstChildOfClass("Animator"):LoadAnimation(anim)
-            track.Priority = Enum.AnimationPriority.Action4
-            track:Play(0)
-        end)
-    end)
+	task.spawn(function()
+		pcall(function()
+			local anim = Instance.new("Animation")
+			anim.AnimationId = "rbxassetid://91640149728350"
+			local track = humanoid:FindFirstChildOfClass("Animator"):LoadAnimation(anim)
+			track.Priority = Enum.AnimationPriority.Action4
+			track:Play(0)
+		end)
+	end)
 
-    local animatedVictims = {}
-    local connections = {}
+	local animatedVictims = setmetatable({}, {__mode = "k"})
+	local victimTracks = {}
+	local connections = {}
 
-    local function AnimateVictim(victimRig)
-        if not victimRig then return end
-        if animatedVictims[victimRig] then return end
-        animatedVictims[victimRig] = true
+	local function AnimateVictim(victimRig)
+		if not victimRig then return end
+		if animatedVictims[victimRig] then return end
+		animatedVictims[victimRig] = true
 
-        local victimHum = victimRig:FindFirstChildOfClass("Humanoid")
-        if not victimHum then
-            local animCtrl = victimRig:FindFirstChildOfClass("AnimationController")
-            if animCtrl then
-                local animator = animCtrl:FindFirstChildOfClass("Animator")
-                if not animator then
-                    animator = Instance.new("Animator")
-                    animator.Parent = animCtrl
-                end
-                local anim = Instance.new("Animation")
-                anim.AnimationId = "rbxassetid://97339752363968"
-                local track = animator:LoadAnimation(anim)
-                track.Priority = Enum.AnimationPriority.Action4
-                track:Play(0)
-            end
-            return
-        end
+		local animator
+		local victimHum = victimRig:FindFirstChildOfClass("Humanoid")
+		if victimHum then
+			animator = victimHum:FindFirstChildOfClass("Animator")
+			if not animator then
+				animator = Instance.new("Animator")
+				animator.Parent = victimHum
+			end
+		else
+			local animCtrl = victimRig:FindFirstChildOfClass("AnimationController")
+			if not animCtrl then return end
+			animator = animCtrl:FindFirstChildOfClass("Animator")
+			if not animator then
+				animator = Instance.new("Animator")
+				animator.Parent = animCtrl
+			end
+		end
 
-        local animator = victimHum:FindFirstChildOfClass("Animator")
-        if not animator then
-            animator = Instance.new("Animator")
-            animator.Parent = victimHum
-        end
+		local anim = Instance.new("Animation")
+		anim.AnimationId = "rbxassetid://97339752363968"
+		local track = animator:LoadAnimation(anim)
+		track.Priority = Enum.AnimationPriority.Action4
+		track:Play(0)
+		victimTracks[track] = true
+	end
 
-        local anim = Instance.new("Animation")
-        anim.AnimationId = "rbxassetid://97339752363968"
-        local track = animator:LoadAnimation(anim)
-        track.Priority = Enum.AnimationPriority.Action4
-        track:Play(0)
-    end
+	local function CheckForVictim(parent)
+		if not parent or not parent.Parent then return end
+		local victim = parent:FindFirstChild("Victim")
+		if victim then
+			AnimateVictim(victim)
+		end
+	end
 
-    local function CheckForVictim(parent)
-        if not parent or not parent.Parent then return end
-        local victim = parent:FindFirstChild("Victim")
-        if victim then
-            AnimateVictim(victim)
-        end
-    end
+	table.insert(connections, Workspace.ChildAdded:Connect(function(child)
+		if child:IsA("Model") then
+			task.spawn(function()
+				task.wait(0.3)
+				CheckForVictim(child)
+			end)
+		end
+	end))
 
-    table.insert(connections, workspace.ChildAdded:Connect(function(child)
-        if child:IsA("Model") then
-            task.spawn(function()
-                task.wait(0.3)
-                CheckForVictim(child)
-            end)
-        end
-    end))
+	local effects = workspace:FindFirstChild("Effects")
+	if effects then
+		table.insert(connections, effects.ChildAdded:Connect(function(child)
+			if child:IsA("Model") then
+				task.spawn(function()
+					task.wait(0.3)
+					CheckForVictim(child)
+				end)
+			end
+		end))
+	end
 
-    local effects = workspace:FindFirstChild("Effects")
-    if effects then
-        table.insert(connections, effects.ChildAdded:Connect(function(child)
-            if child:IsA("Model") then
-                task.spawn(function()
-                    task.wait(0.3)
-                    CheckForVictim(child)
-                end)
-            end
-        end))
-    end
+	task.spawn(function()
+		for i = 1, 60 do
+			task.wait(1)
+			if stopped or plr.Character ~= char then break end
+			for _, obj in ipairs(Workspace:GetDescendants()) do
+				if obj:IsA("Model") and obj.Name == "Victim" then
+					local hum = obj:FindFirstChildOfClass("Humanoid")
+					if hum then
+						AnimateVictim(obj)
+					end
+				end
+			end
+		end
+	end)
 
-    task.spawn(function()
-        for i = 1, 30 do
-            task.wait(0.2)
-            if not char or not char.Parent then break end
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("Model") and obj.Name == "Victim" then
-                    local hum = obj:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        AnimateVictim(obj)
-                    end
-                end
-            end
-        end
-    end)
+	task.spawn(function()
+		pcall(function() REPL.x2011_tartarus(char) end)
+	end)
 
-    task.spawn(function()
-        pcall(function()
-            require(rep.client.replication).x2011_tartarus(char)
-        end)
-    end)
+	task.spawn(function()
+		pcall(function() REPL.evil_exeAwk(char) end)
+	end)
 
-    task.spawn(function()
-        pcall(function()
-            require(rep.client.replication).evil_exeAwk(char)
-        end)
-    end)
+	task.delay(21, function()
+		for _, conn in ipairs(connections) do
+			pcall(function() conn:Disconnect() end)
+		end
+		for track in pairs(victimTracks) do
+			pcall(function() track:Stop() end)
+			victimTracks[track] = nil
+		end
+		task.delay(30, function()
+			awkOnCD = false
+		end)
+	end)
+end
 
-    task.delay(21, function()
-        if not char or not char.Parent then return end
-        for _, conn in ipairs(connections) do
-            pcall(function() conn:Disconnect() end)
-        end
-        task.delay(30, function()
-            awkOnCD = false
-        end)
-    end)
+local function BindSkill(buttons, name, fn)
+	local btn = buttons:FindFirstChild(name)
+	local base = btn and btn:FindFirstChild("Base")
+	if not base then return end
+	local old = buttonConnections[name]
+	if old then
+		pcall(function() old:Disconnect() end)
+	end
+	buttonConnections[name] = base.MouseButton1Down:Connect(fn)
 end
 
 local function StopMoveset()
-    stopped = true
-    metavisionEnabled = false
+	stopped = true
 
-    if metavisionLoop then
-        metavisionLoop:Disconnect()
-        metavisionLoop = nil
-    end
+	for name, conn in pairs(buttonConnections) do
+		pcall(function() conn:Disconnect() end)
+		buttonConnections[name] = nil
+	end
+	for _, conn in ipairs(awakenConnections) do
+		pcall(function() conn:Disconnect() end)
+	end
+	awakenConnections = {}
 
-    hideAllMetavision()
-
-    pcall(function()
-        visionFolder:Destroy()
-    end)
-
-    local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
-    if hotbar then
-        local buttons = hotbar.Backpack.Hotbar
-        for i = 1, 5 do
-            local skill = buttons:FindFirstChild("skill" .. i)
-            if skill then
-                skill.Visible = false
-            end
-        end
-    end
+	local bar = GetBar()
+	if bar then
+		for i = 1, 5 do
+			local skill = bar:FindFirstChild("skill" .. i)
+			if skill then
+				skill.Visible = false
+			end
+		end
+	end
 end
 
 local function Setup(char)
-    if stopped then return end
-    repeat task.wait() until plr.Team ~= game.Teams.lobby
-    task.wait(0.1)
-    BlockOriginalSkills()
+	if stopped then return end
+	while not stopped and plr.Team == game.Teams.lobby do
+		task.wait(0.5)
+	end
+	if stopped then return end
+	task.wait(0.1)
+	BlockOriginalSkills()
 
-    plr:SetAttribute("style", "exe")
+	plr:SetAttribute("style", "exe")
 
-    local hotbar = plr.PlayerGui:WaitForChild("Hotbar")
-    local buttons = hotbar.Backpack.Hotbar
+	local hotbar = plr.PlayerGui:WaitForChild("Hotbar", 30)
+	if not hotbar or stopped then return end
+	local backpack = hotbar:WaitForChild("Backpack", 30)
+	if not backpack or stopped then return end
+	local buttons = backpack:WaitForChild("Hotbar", 30)
+	if not buttons or stopped then return end
 
-    if buttons.skill5 then buttons.skill5.Visible = false end
-    if buttons.skill5 and buttons.skill5.Base then buttons.skill5.Base.Active = false end
+	BindSkill(buttons, "skill1", Shortcut)
+	BindSkill(buttons, "skill2", Exterminate)
+	BindSkill(buttons, "skill3", EXEStrike)
+	BindSkill(buttons, "skill4", Altisimus)
+	BindSkill(buttons, "skill5", Shot)
 
-    buttons.skill1.Base.MouseButton1Down:Connect(Shortcut)
-    buttons.skill2.Base.MouseButton1Down:Connect(Exterminate)
-    buttons.skill3.Base.MouseButton1Down:Connect(EXEStrike)
-    buttons.skill4.Base.MouseButton1Down:Connect(Altisimus)
+	buttons.skill1.Base.Reuse.Text = "Ball"
+	buttons.skill2.Base.Reuse.Text = "Off Ball"
+	buttons.skill3.Base.Reuse.Text = "Ball"
+	buttons.skill4.Base.Reuse.Text = "Ball"
+	buttons.skill5.Base.Reuse.Text = "Ball"
 
-    buttons.skill1.Base.Reuse.Text = "Ball"
-    buttons.skill2.Base.Reuse.Text = "Off Ball"
-    buttons.skill3.Base.Reuse.Text = "Ball"
-    buttons.skill4.Base.Reuse.Text = "Ball"
+	for i = 1, 5 do
+		local skill = buttons:FindFirstChild("skill" .. i)
+		local base = skill and skill:FindFirstChild("Base")
+		if base then
+			base.Reuse.Visible = true
+		end
+		if skill then
+			skill.Visible = true
+		end
+	end
 
-    for i = 1, 4 do
-        buttons["skill"..i].Base.Reuse.Visible = true
-        buttons["skill"..i].Visible = true
-    end
-
-    pcall(function()
-        local mh = hotbar:FindFirstChild("MagicHealth")
-        if mh and mh:FindFirstChild("Awakening") then
-            mh.Awakening.TouchTap:Connect(function()
-                if HasBall() then
-                    ExeAwk()
-                else
-                    OffBallCombo()
-                end
-            end)
-            mh.Awakening.MouseButton1Click:Connect(function()
-                if HasBall() then
-                    ExeAwk()
-                else
-                    OffBallCombo()
-                end
-            end)
-        end
-    end)
+	pcall(function()
+		local mh = hotbar:FindFirstChild("MagicHealth")
+		local awaken = mh and mh:FindFirstChild("Awakening")
+		if not awaken then return end
+		local function onAwaken()
+			if stopped then return end
+			if HasBall() then
+				ExeAwk()
+			else
+				OffBallCombo()
+			end
+		end
+		table.insert(awakenConnections, awaken.TouchTap:Connect(onAwaken))
+		table.insert(awakenConnections, awaken.MouseButton1Click:Connect(onAwaken))
+	end)
 end
 
 Setup(plr.Character)
 
 plr.CharacterAdded:Connect(function(char)
-    awkOnCD = false
-    task.wait(1)
-    Setup(char)
+	awkOnCD = false
+	task.wait(1)
+	Setup(char)
 end)
 
-task.spawn(function()
-    while true do
-        if stopped then break end
-        local gui = plr:WaitForChild("PlayerGui", 2)
-        if gui then
-            local hotbar = gui:FindFirstChild("Hotbar")
-            if hotbar then
-                hotbar.Backpack.Hotbar.skill1.Base.ToolName.Text = "Shortcut"
-                hotbar.Backpack.Hotbar.skill2.Base.ToolName.Text = "Exterminate"
-                hotbar.Backpack.Hotbar.skill3.Base.ToolName.Text = "EXE Strike"
-                hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Altisimus"
+local brandedGui = nil
 
-                hotbar.MagicHealth.Awakening.Text = "FLOW"
-                hotbar.MagicHealth.TextLabel.Text = "Many Souls To Play With."
-                hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0))
-                }
-            end
-        end
-        task.wait(0.1)
-    end
+local function ApplyBranding()
+	local hotbar = plr.PlayerGui:WaitForChild("Hotbar", 30)
+	if not hotbar then return end
+	local backpack = hotbar:WaitForChild("Backpack", 30)
+	if not backpack then return end
+	local bar = backpack:WaitForChild("Hotbar", 30)
+	if not bar then return end
+
+	local labels = {
+		skill1 = "Shortcut",
+		skill2 = "Exterminate",
+		skill3 = "EXE Strike",
+		skill4 = "Altisimus",
+		skill5 = "whirlwind shot",
+	}
+	for slot, text in pairs(labels) do
+		local btn = bar:FindFirstChild(slot)
+		local toolName = btn and btn:FindFirstChild("Base") and btn.Base:FindFirstChild("ToolName")
+		if toolName then toolName.Text = text end
+	end
+
+	local magic = hotbar:WaitForChild("MagicHealth", 30)
+	if not magic then return end
+	local awakening = magic:FindFirstChild("Awakening")
+	if awakening then awakening.Text = "FLOW" end
+	local textLabel = magic:FindFirstChild("TextLabel")
+	if textLabel then textLabel.Text = "Many Souls To Play With." end
+
+	if brandedGui ~= magic then
+		local health = magic:FindFirstChild("Health")
+		local frame = health and health:FindFirstChild("Frame")
+		local gradient = frame and frame:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0)),
+})
+		end
+		brandedGui = magic
+	end
+end
+
+task.spawn(function()
+	while not stopped do
+		pcall(ApplyBranding)
+		if stopped then break end
+		plr.CharacterAdded:Wait()
+		task.wait(1)
+	end
 end)
 
 UserInputService.InputBegan:Connect(function(input, bg)
-    if bg or stopped then return end
+	if bg or stopped then return end
 
-    if input.KeyCode == Enum.KeyCode.G then
-        if HasBall() then
-            ExeAwk()
-        else
-            OffBallCombo()
-        end
-    elseif input.KeyCode == Enum.KeyCode.One then
-        Shortcut()
-    elseif input.KeyCode == Enum.KeyCode.Two then
-        Exterminate()
-    elseif input.KeyCode == Enum.KeyCode.Three then
-        EXEStrike()
-    elseif input.KeyCode == Enum.KeyCode.Four then
-        Altisimus()
-    elseif input.KeyCode == Enum.KeyCode.F5 then
-        StopMoveset()
-    end
+	if input.KeyCode == Enum.KeyCode.G then
+		if HasBall() then
+			ExeAwk()
+		else
+			OffBallCombo()
+		end
+	elseif input.KeyCode == Enum.KeyCode.One then
+		Shortcut()
+	elseif input.KeyCode == Enum.KeyCode.Two then
+		Exterminate()
+	elseif input.KeyCode == Enum.KeyCode.Three then
+		EXEStrike()
+	elseif input.KeyCode == Enum.KeyCode.Four then
+		Altisimus()
+	elseif input.KeyCode == Enum.KeyCode.Five then
+		Shot()
+	elseif input.KeyCode == Enum.KeyCode.F5 then
+		StopMoveset()
+	end
 end)
 
 print("Sonic.exe Moveset loaded!")
