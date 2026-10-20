@@ -16,13 +16,32 @@ local player = Players.LocalPlayer
 
 local BNR = ReplicatedStorage:WaitForChild("ByteNetReliable")
 
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 local buffers = {}
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
+do
+    local networking = nil
+    local deadline = tick() + 15
+    repeat
+        local storage = ReplicatedStorage:FindFirstChild("BytenetStorage")
+        networking = storage and storage:FindFirstChild("Networking")
+        if not networking then task.wait(0.5) end
+    until networking or tick() > deadline
+    if networking then
+        local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
+        if ok and parsed and parsed.packets then
+            for name, byteNum in pairs(parsed.packets) do
+                buffers[name] = string.char(byteNum)
+            end
+            if buffers["bytenet_use"] then
+                buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
+            end
+            if buffers["bytenet_findBall"] then
+                buffers["grabball"] = buffers["bytenet_findBall"]
+            end
+        end
+    end
 end
-Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 local vector = {
     create = function(x, y, z) return Vector3.new(x, y, z) end
@@ -807,7 +826,7 @@ getgenv().AutoPlayTab:AddToggle({
                         if root and goal then
                             root.CFrame = goal.CFrame
                             task.wait(0.185)
-                            BNR:FireServer(buffer.fromstring(buffers["base"]), { { "kick", 20, false, vector.create(0, 1, 0) } })
+                            BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0), "basicShot"}})
                         end
                     end
                 end)
@@ -947,7 +966,7 @@ local function doAirDribble()
     anim.AnimationId = "rbxassetid://76587445975710"
     hum:LoadAnimation(anim):Play()
     local dir = root.CFrame.LookVector
-    BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 28, false, Vector3.new(dir.X*0.75, 0.65, dir.Z*0.75)}})
+    BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 28, false, Vector3.new(dir.X*0.75, 0.65, dir.Z*0.75), "basicShot"}})
 end
 
 getgenv().AutoPlayTab:AddToggle({ Text = "Air Dribble", Icon = "Lucide:wind", Flag = "SW_airDribble", Default = false, Callback = function(v) airDribState.enabled = v end })
@@ -1644,7 +1663,7 @@ getgenv().BallControlTab:AddButton({
             while flowPartData.flowActive and flow.Value < 100 do
                 for i = 1, 25 do
                     if not flowPartData.flowActive or flow.Value >= 100 then break end
-                    BNR:FireServer(buffer.fromstring(buffers["base"]), { { "kick", 1, false, vector.create(0, 1, 0) } })
+                    BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 1, false, vector.create(0, 1, 0), "basicShot"}})
                     task.wait(0.15)
                 end
                 if not flowPartData.flowActive or flow.Value >= 100 then break end
@@ -1658,7 +1677,7 @@ getgenv().BallControlTab:AddButton({
 
                 for i = 1, 2 do
                     if not flowPartData.flowActive or flow.Value >= 100 then break end
-                    BNR:FireServer(buffer.fromstring(buffers["base"]), { { "kick", 1, false, vector.create(0, 1, 0) } })
+                    BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 1, false, vector.create(0, 1, 0), "basicShot"}})
                     task.wait(0.12)
                 end
                 if not flowPartData.flowActive or flow.Value >= 100 then break end
@@ -3272,7 +3291,7 @@ getgenv().ExploitsTab:AddToggle({
                             task.wait(0.5)
                             root.CFrame = targetGoal.CFrame
                             task.wait(0.185)
-                            BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 50, false, vector.create(0, 1, 0)}})
+                            BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 50, false, vector.create(0, 1, 0), "basicShot"}})
                             firePacketsIfNear()
                         end
                     end
