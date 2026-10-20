@@ -4,14 +4,45 @@ workspace.map.Agoal.CanCollide = false
 workspace.map.Bgoal.CanCollide = false
 
 local ReplicatedStorage = game.ReplicatedStorage
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 
 local buffers = {}
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
+
+do
+	local networking = nil
+	local deadline = tick() + 15
+	repeat
+		local storage = ReplicatedStorage:FindFirstChild("BytenetStorage")
+		networking = storage and storage:FindFirstChild("Networking")
+		if not networking then task.wait(0.5) end
+	until networking or tick() > deadline
+	if networking then
+		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
+		if ok and parsed and parsed.packets then
+			for name, byteNum in pairs(parsed.packets) do
+				buffers[name] = string.char(byteNum)
+			end
+			if buffers["bytenet_use"] then
+				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
+			end
+			if buffers["bytenet_findBall"] then
+				buffers["grabball"] = buffers["bytenet_findBall"]
+			end
+			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
+			if old then old:Destroy() end
+			local folder = Instance.new("Folder")
+			folder.Name = "BUFFERSTRINGS"
+			folder.Parent = Lighting
+			for name, val in pairs(buffers) do
+				local sv = Instance.new("StringValue")
+				sv.Name = name
+				sv.Value = val
+				sv.Parent = folder
+			end
+		end
+	end
 end
-game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 game:GetService("ReplicatedStorage").Resources.shidou.NEWthemes.SoundId = "rbxassetid://101265113960897"
 game:GetService("ReplicatedStorage").Resources.shidou.AwkOvertime.BGM.SoundId = "rbxassetid://101265113960897"
@@ -23,7 +54,9 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
 
 if getgenv().DribbleSpeed == nil then getgenv().DribbleSpeed = 1 end
 getgenv().DribbleSpeed = math.clamp(getgenv().DribbleSpeed, 0.1, 3)
@@ -177,19 +210,19 @@ end)
 UserInputService.InputBegan:Connect(function(input, bg)
     if bg then return end
     if disabled then return end
-    
+
     if input.KeyCode == Enum.KeyCode.F4 then
         disabled = true
         return
     end
-    
+
     local char = plr.Character
     if not char then return end
-    
+
     local state = char:FindFirstChild("state")
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    
+
     if input.KeyCode == Enum.KeyCode.One then
         task.spawn(function()
             local stun = state and state:FindFirstChild("stun")
@@ -276,7 +309,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
             end)()))
             root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
             task.wait(0.2)
-            remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 100, false, root.CFrame.LookVector * 1e19}})
+            remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}})
             task.wait(0.001)
             root.CFrame = originalCFrame
         end)
@@ -316,7 +349,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
         local direction = (targetRoot.Position - root.Position).Unit
         local kickDir = Vector3.new(direction.X, 0.18, direction.Z).Unit
         local power = math.clamp(distance / 1.4, 18, 95)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", power, true, vector.create(kickDir.X, kickDir.Y, kickDir.Z)}})
+        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", power, true, vector.create(kickDir.X, kickDir.Y, kickDir.Z), "basicShot"}})
         task.delay(0.7, function()
             if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = 40 end
             if char and char:FindFirstChild("state") then char.state.stun.Value = false end
@@ -374,7 +407,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
         task.spawn(function()
             BodyVelocity(root, 120, 1, false, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
             task.delay(1, function() for _, p in allParticles do if p and p.Parent then p.Enabled = false end end end)
-            task.delay(3, function() for _, p in allParticles do if p then p:Destroy() end end; if effect1 then effect1:Destroy() end; if effect2 then effect2:Destroy() end end)
+            task.delay(3, function() for _, p in allParticles do if p then p:Destroy() end; if effect1 then effect1:Destroy() end; if effect2 then effect2:Destroy() end end)
         end)
 
     elseif input.KeyCode == Enum.KeyCode.Five then
@@ -406,7 +439,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
             root.CFrame = goal.CFrame
             repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
             task.wait(0.2)
-            remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
+            remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0), "basicShot"}})
         end
         humanoid.WalkSpeed = 40
         char.state.stun.Value = false
