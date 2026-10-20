@@ -12,6 +12,45 @@ local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+
+local buffers = {}
+
+do
+	local networking = nil
+	local deadline = tick() + 15
+	repeat
+		local storage = rep:FindFirstChild("BytenetStorage")
+		networking = storage and storage:FindFirstChild("Networking")
+		if not networking then task.wait(0.5) end
+	until networking or tick() > deadline
+	if networking then
+		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
+		if ok and parsed and parsed.packets then
+			for name, byteNum in pairs(parsed.packets) do
+				buffers[name] = string.char(byteNum)
+			end
+			if buffers["bytenet_use"] then
+				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
+			end
+			if buffers["bytenet_findBall"] then
+				buffers["grabball"] = buffers["bytenet_findBall"]
+			end
+			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
+			if old then old:Destroy() end
+			local folder = Instance.new("Folder")
+			folder.Name = "BUFFERSTRINGS"
+			folder.Parent = Lighting
+			for name, val in pairs(buffers) do
+				local sv = Instance.new("StringValue")
+				sv.Name = name
+				sv.Value = val
+				sv.Parent = folder
+			end
+		end
+	end
+end
 
 local messiVFX = require(rep.client.replication.otherReplication.messiVFX)
 local mainreplication = require(rep.client.replication.mainreplication)
@@ -28,7 +67,6 @@ getgenv().DribbleSpeed = math.clamp(getgenv().DribbleSpeed, 0.1, 3)
 
 local stopped = false
 local flowOnCD = false
-local buffers = {}
 local overtimeSoundPlayed = false
 local overtimeSound = nil
 local timerConnection = nil
@@ -38,7 +76,7 @@ local function createMobileUI(skillFuncs)
     screenGui.Name = "MobileSkillUI"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = plr:WaitForChild("PlayerGui")
-    
+
     local function createButton(name, index, func)
         local btn = Instance.new("TextButton")
         btn.Name = name
@@ -49,18 +87,18 @@ local function createMobileUI(skillFuncs)
         btn.TextSize = 12
         btn.Text = tostring(index)
         btn.Parent = screenGui
-        
+
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 5)
         corner.Parent = btn
-        
+
         local pos = UDim2.new(0, 10 + (index-1)*80, 0, 10)
         btn.Position = pos
-        
+
         local dragging = false
         local dragStart = nil
         local posStart = nil
-        
+
         btn.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
@@ -68,31 +106,31 @@ local function createMobileUI(skillFuncs)
                 posStart = btn.Position
             end
         end)
-        
+
         btn.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch then
                 dragging = false
             end
         end)
-        
+
         btn.InputChanged:Connect(function(input)
             if dragging and input.UserInputType == Enum.UserInputType.Touch then
                 local delta = input.Position - dragStart
                 btn.Position = posStart + UDim2.new(0, delta.X, 0, delta.Y)
             end
         end)
-        
+
         btn.TouchTap:Connect(func)
         btn.MouseButton1Click:Connect(func)
-        
+
         return btn
     end
-    
+
     createButton("Skill1", 1, skillFuncs[1])
     createButton("Skill2", 2, skillFuncs[2])
     createButton("Skill3", 3, skillFuncs[3])
     createButton("Skill4", 4, skillFuncs[4])
-    
+
     local ultimateBtn = Instance.new("TextButton")
     ultimateBtn.Name = "Ultimate"
     ultimateBtn.Size = UDim2.new(0, 70, 0, 70)
@@ -103,15 +141,15 @@ local function createMobileUI(skillFuncs)
     ultimateBtn.Text = "G"
     ultimateBtn.Position = UDim2.new(0, 10, 0, 90)
     ultimateBtn.Parent = screenGui
-    
+
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 5)
     corner.Parent = ultimateBtn
-    
+
     local dragging = false
     local dragStart = nil
     local posStart = nil
-    
+
     ultimateBtn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
@@ -119,20 +157,20 @@ local function createMobileUI(skillFuncs)
             posStart = ultimateBtn.Position
         end
     end)
-    
+
     ultimateBtn.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end)
-    
+
     ultimateBtn.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.Touch then
             local delta = input.Position - dragStart
             ultimateBtn.Position = posStart + UDim2.new(0, delta.X, 0, delta.Y)
         end
     end)
-    
+
     ultimateBtn.TouchTap:Connect(skillFuncs[5])
     ultimateBtn.MouseButton1Click:Connect(skillFuncs[5])
 end
@@ -180,54 +218,12 @@ workspace.ChildAdded:Connect(function(child)
     if child.Name == "map" then watchMap() end
 end)
 
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
-end
-game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
-
-local function DetectExecutor()
-    local hasRequire = pcall(function() return require ~= nil end)
-    local hasHook = hookmetamethod ~= nil
-    local hasFenv = (getfenv ~= nil and setfenv ~= nil)
-    local execName = "Unknown"
-    if identifyexecutor then
-        local success, name = pcall(identifyexecutor)
-        if success and name then execName = name end
-    elseif syn and syn.name then execName = syn.name
-    elseif getexecutorname then execName = getexecutorname() end
-    local isFull = hasRequire and hasHook and hasFenv
-    return isFull, execName
-end
-
-local isFullExecutor, executorName = DetectExecutor()
-
-if not isFullExecutor then
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "Not Support Executor",
-        Text = string.format("%s detected. Use a better executor.", executorName),
-        Duration = 5,
-        Button1 = "Ok",
-        Icon = "rbxassetid://75337362546331"
-    })
-else
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "Full Support",
-        Text = string.format("%s detected. Fully supported!", executorName),
-        Duration = 3,
-        Button1 = "Ok",
-        Icon = "rbxassetid://130521044774541"
-    })
-end
-
 local packets = require(rep:WaitForChild("packets"))
 local function ShootSkill()
     packets.bytenet_use.send({"skill1"})
 end
 
 ShootSkill()
-
 
 if not getgenv().MessiNotifyGUI then
     getgenv().MessiNotifyGUI = plr.PlayerGui.Notification:Clone()
@@ -313,7 +309,6 @@ task.spawn(function()
     end)
 end)
 
-
 local watermarkObj = nil
 if not getgenv().DisableWatermark then
 if getgenv().MessiWatermarkName == nil or getgenv().MessiWatermarkName == '' then
@@ -339,7 +334,7 @@ if not game.CoreGui.RobloxGui:FindFirstChild(getgenv().MessiWatermarkName) then
     watermarkObj.TextColor3 = Color3.fromRGB(0, 157, 255)
     watermarkObj.TextTransparency = 0.59
     watermarkObj.Parent = plr:WaitForChild("PlayerGui")
-    
+
     discordText.Parent = watermarkObj
 end
 end
@@ -432,13 +427,13 @@ local function TeleportShot(char, shootDelay)
     local root = char.HumanoidRootPart
     task.delay(shootDelay, function()
         if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
-        
+
         local function executeShot()
             if getgenv().SkillShoot then
                 ShootSkill()
             else
                 remote:FireServer(buffer.fromstring(buffers["base"]), {
-                    {"kick", 100, false, root.CFrame.LookVector * 1e19}
+                    {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
                 })
             end
         end
@@ -471,9 +466,9 @@ local function TeleportShot(char, shootDelay)
         end)()))
         root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
         task.wait(0.2)
-        
+
         executeShot()
-        
+
         task.wait(0.001)
         root.CFrame = originalCFrame
     end)
@@ -489,10 +484,10 @@ local function Dribble()
     local animBlock = BlockBaseAnimations(humanoid, anims.Dribble.AnimationId)
     humanoid:LoadAnimation(anims.Dribble):Play()
     PlaySFX(sounds.Superstar, root)
-    
+
     local speedMultiplier = math.clamp(getgenv().DribbleSpeed or 1, 0.1, 3)
     local isChanging = false
-    
+
     if root then
         root.AssemblyLinearVelocity = root.AssemblyLinearVelocity * speedMultiplier
     end
@@ -509,7 +504,7 @@ local function Dribble()
                 end
                 isChanging = false
             end
-            
+
             child:GetPropertyChangedSignal(child:IsA("BodyVelocity") and "Velocity" or "VectorVelocity"):Connect(function()
                 if child and child.Parent and not isChanging then
                     isChanging = true
@@ -523,7 +518,7 @@ local function Dribble()
             end)
         end
     end)
-    
+
     for _, child in pairs(root:GetChildren()) do
         if (child:IsA("BodyVelocity") or child:IsA("LinearVelocity")) and not isChanging then
             isChanging = true
@@ -537,9 +532,9 @@ local function Dribble()
     end
 
     pcall(function() messiVFX.messiDribbleVFX(char, true) end)
-    
-    task.delay(4.25, function() 
-        animBlock:Disconnect() 
+
+    task.delay(4.25, function()
+        animBlock:Disconnect()
         if velocityConnection then
             velocityConnection:Disconnect()
         end
@@ -603,7 +598,7 @@ local function SuperPass()
     local power = math.clamp(distance / 1.4, 18, 95)
     remote:FireServer(
         buffer.fromstring(buffers["base"]),
-        { {"kick", power, true, Vector3.new(kickDir.X, kickDir.Y, kickDir.Z)} }
+        { {"kick", power, true, Vector3.new(kickDir.X, kickDir.Y, kickDir.Z), "basicShot"} }
     )
 end
 
@@ -619,7 +614,7 @@ local function Intercept()
     CancelMove()
     DoCD("skill4", 4)
     humanoid:LoadAnimation(anims.InterceptStart):Play()
-    pcall(function() 
+    pcall(function()
         local s = Instance.new("Sound")
         s.SoundId = "rbxassetid://89339537870505"
         s.Volume = 1
@@ -883,7 +878,7 @@ local function Setup(char)
     buttons.skill3.Base.Reuse.Text = "Auto-Pass"
     buttons.skill4.Base.Reuse.Text = ""
     buttons.skill5.Base.Reuse.Text = "Steal"
-    for i = 1, 5 do 
+    for i = 1, 5 do
         buttons["skill"..i].Base.Reuse.Visible = true
         buttons["skill"..i].Visible = true
     end
