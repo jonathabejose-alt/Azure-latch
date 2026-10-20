@@ -9,11 +9,31 @@ local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 local buffers = {}
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
+do
+    local networking = nil
+    local deadline = tick() + 15
+    repeat
+        local storage = game:GetService("ReplicatedStorage"):FindFirstChild("BytenetStorage")
+        networking = storage and storage:FindFirstChild("Networking")
+        if not networking then task.wait(0.5) end
+    until networking or tick() > deadline
+    if networking then
+        local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
+        if ok and parsed and parsed.packets then
+            for name, byteNum in pairs(parsed.packets) do
+                buffers[name] = string.char(byteNum)
+            end
+            if buffers["bytenet_use"] then
+                buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
+            end
+            if buffers["bytenet_findBall"] then
+                buffers["grabball"] = buffers["bytenet_findBall"]
+            end
+        end
+    end
 end
 game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
@@ -107,7 +127,7 @@ local function TeleportShot(char, shootDelay)
 
         local function executeShot()
             remote:FireServer(buffer.fromstring(buffers["base"]), {
-                {"kick", 100, false, root.CFrame.LookVector * 1e19}
+                {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
             })
         end
 
