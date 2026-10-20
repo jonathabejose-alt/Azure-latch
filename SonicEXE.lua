@@ -1,10 +1,11 @@
-
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 local plr = Players.LocalPlayer
 local rep = game:GetService("ReplicatedStorage")
 local other = rep.client.replication.otherReplication
@@ -14,12 +15,40 @@ local REPL = require(rep.client.replication)
 local remote = rep:WaitForChild("ByteNetReliable")
 
 local buffers = {}
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
+do
+	local networking = nil
+	local deadline = tick() + 15
+	repeat
+		local storage = rep:FindFirstChild("BytenetStorage")
+		networking = storage and storage:FindFirstChild("Networking")
+		if not networking then task.wait(0.5) end
+	until networking or tick() > deadline
+	if networking then
+		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
+		if ok and parsed and parsed.packets then
+			for name, byteNum in pairs(parsed.packets) do
+				buffers[name] = string.char(byteNum)
+			end
+			if buffers["bytenet_use"] then
+				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
+			end
+			if buffers["bytenet_findBall"] then
+				buffers["grabball"] = buffers["bytenet_findBall"]
+			end
+			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
+			if old then old:Destroy() end
+			local folder = Instance.new("Folder")
+			folder.Name = "BUFFERSTRINGS"
+			folder.Parent = Lighting
+			for name, val in pairs(buffers) do
+				local sv = Instance.new("StringValue")
+				sv.Name = name
+				sv.Value = val
+				sv.Parent = folder
+			end
+		end
+	end
 end
-game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 local SHOT_ANIM = "rbxassetid://99881509878056"
 local SHOT_SOUND = "rbxassetid://126011406873336"
@@ -93,7 +122,12 @@ local function DoCD(name, duration)
 end
 
 local function SendKick(power, direction)
-	remote:FireServer(buffer.fromstring(buffers["base"]))
+	power = power or 29
+	local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+	direction = direction or (root and root.CFrame.LookVector) or Vector3.new(0, 0, 1)
+	remote:FireServer(buffer.fromstring(buffers["base"]), {
+		{"kick", power, false, direction * 1e19, "basicShot"}
+	})
 end
 
 local function SendGrab()
@@ -152,7 +186,6 @@ local function Stun(time, disableRotate)
 	end)
 	Debris:AddItem(cfg, time)
 end
-
 
 local function BlockOriginalSkills()
 	task.wait(0.1)
@@ -222,7 +255,7 @@ local function TeleportShot(char, shootDelay)
 
         local function executeShot()
             remote:FireServer(buffer.fromstring(buffers["base"]), {
-                {"kick", 100, false, root.CFrame.LookVector * 1e19}
+                {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
             })
         end
 
@@ -243,7 +276,6 @@ local function TeleportShot(char, shootDelay)
         if gkBarrier then
             local barrierPart = gkBarrier:FindFirstChild(oppositeTeam == "A" and "Abarriar" or "Bbarriar")
             if barrierPart then table.insert(filterList, barrierPart) end
-
         end
         local gkCheck = workspace.map and workspace.map:FindFirstChild(oppositeTeam .. "GoalkeeperCheck")
         if gkCheck then table.insert(filterList, gkCheck) end
@@ -475,9 +507,7 @@ local function Altisimus()
 
 	PlaySound(root, "rbxassetid://71942851306233", 1.5, 6)
 
-
 	pcall(function() REPL.x2011_altisimus(char) end)
-    
 
 	TeleportShot(char, 1.2)
 	Stun(2, false)
@@ -552,7 +582,6 @@ local function ExeAwk()
 			track:Play(0)
 		end)
 	end)
-
 
 	task.spawn(function()
 		pcall(function() REPL.exeAwk(char) end)
@@ -846,7 +875,7 @@ local function ApplyBranding()
 			gradient.Color = ColorSequence.new({
 				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
 				ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0)),
-})
+			})
 		end
 		brandedGui = magic
 	end
