@@ -426,11 +426,10 @@ local function ApplyBranding()
     if not bar then return end
 
     local labels = {
-        skill1 = "Shortcut",
-        skill2 = "Exterminate",
-        skill3 = "EXE Strike",
-        skill4 = "Altisimus",
-        skill5 = "whirlwind shot",
+        skill1 = "Goryu Volley",
+        skill2 = "Goryu On-Ball",
+        skill3 = "Goryu Feint",
+        skill4 = "Shatter Second",
     }
     for slot, text in pairs(labels) do
         local btn = bar:FindFirstChild(slot)
@@ -480,7 +479,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
         GoryuFeint()
     elseif input.KeyCode == Enum.KeyCode.Four then
         ShatterSecond()
-    elseif input.KeyCode == Enum.KeyCode.Five then
+    elseif input.KeyCode == Enum.KeyCode.G then
         AizenAwaken()
     elseif input.KeyCode == Enum.KeyCode.F4 then
         StopMoveset()
