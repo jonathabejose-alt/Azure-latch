@@ -5,13 +5,32 @@ workspace.map.Bgoal.CanCollide = false
 
 local ReplicatedStorage = game.ReplicatedStorage
 
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 local buffers = {}
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
+do
+    local networking = nil
+    local deadline = tick() + 15
+    repeat
+        local storage = game:GetService("ReplicatedStorage"):FindFirstChild("BytenetStorage")
+        networking = storage and storage:FindFirstChild("Networking")
+        if not networking then task.wait(0.5) end
+    until networking or tick() > deadline
+    if networking then
+        local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
+        if ok and parsed and parsed.packets then
+            for name, byteNum in pairs(parsed.packets) do
+                buffers[name] = string.char(byteNum)
+            end
+            if buffers["bytenet_use"] then
+                buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
+            end
+            if buffers["bytenet_findBall"] then
+                buffers["grabball"] = buffers["bytenet_findBall"]
+            end
+        end
+    end
 end
-game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 game:GetService("ReplicatedStorage").Resources.shidou.NEWthemes.SoundId = "rbxassetid://101265113960897"
 game:GetService("ReplicatedStorage").Resources.shidou.AwkOvertime.BGM.SoundId = "rbxassetid://101265113960897"
@@ -276,7 +295,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
             end)()))
             root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
             task.wait(0.2)
-            remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 100, false, root.CFrame.LookVector * 1e19}})
+            remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 100, false, root.CFrame.LookVector  * 1e19, "basicShot"}})
             task.wait(0.001)
             root.CFrame = originalCFrame
         end)
@@ -316,7 +335,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
         local direction = (targetRoot.Position - root.Position).Unit
         local kickDir = Vector3.new(direction.X, 0.18, direction.Z).Unit
         local power = math.clamp(distance / 1.4, 18, 95)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", power, true, vector.create(kickDir.X, kickDir.Y, kickDir.Z)}})
+        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", power, true, vector.create(kickDir.X, kickDir.Y, kickDir.Z), "basicShot"}})
         task.delay(0.7, function()
             if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = 40 end
             if char and char:FindFirstChild("state") then char.state.stun.Value = false end
@@ -406,7 +425,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
             root.CFrame = goal.CFrame
             repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
             task.wait(0.2)
-            remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
+            remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0), "basicShot"}})
         end
         humanoid.WalkSpeed = 40
         char.state.stun.Value = false
@@ -445,3 +464,4 @@ end
 load(plr.Character)
 plr.CharacterAdded:Connect(function(char) task.wait(1); load(char) end)
 print("Ronaldo Moveset loaded!")
+
