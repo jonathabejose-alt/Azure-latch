@@ -1,33 +1,72 @@
+workspace.map.gkbarriar.Abarriar.CanCollide = false
+workspace.map.gkbarriar.Bbarriar.CanCollide = false
+workspace.map.Agoal.CanCollide = false
+workspace.map.Bgoal.CanCollide = false
+
+local ReplicatedStorage = game.ReplicatedStorage
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+
+local buffers = {}
+
+do
+	local networking = nil
+	local deadline = tick() + 15
+	repeat
+		local storage = ReplicatedStorage:FindFirstChild("BytenetStorage")
+		networking = storage and storage:FindFirstChild("Networking")
+		if not networking then task.wait(0.5) end
+	until networking or tick() > deadline
+	if networking then
+		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
+		if ok and parsed and parsed.packets then
+			for name, byteNum in pairs(parsed.packets) do
+				buffers[name] = string.char(byteNum)
+			end
+			if buffers["bytenet_use"] then
+				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
+			end
+			if buffers["bytenet_findBall"] then
+				buffers["grabball"] = buffers["bytenet_findBall"]
+			end
+			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
+			if old then old:Destroy() end
+			local folder = Instance.new("Folder")
+			folder.Name = "BUFFERSTRINGS"
+			folder.Parent = Lighting
+			for name, val in pairs(buffers) do
+				local sv = Instance.new("StringValue")
+				sv.Name = name
+				sv.Value = val
+				sv.Parent = folder
+			end
+		end
+	end
+end
+
 local plr = game.Players.LocalPlayer
-local cam = game.Workspace.CurrentCamera
 local rep = game:GetService("ReplicatedStorage")
 local remote = rep:WaitForChild("ByteNetReliable")
-local kjFolder = rep.Resources.KJ
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
+
+local kjFolder = rep.Resources.KJ
 
 local KJVFX = require(rep.client.replication.otherReplication.KJVFX)
 local mainreplication = require(rep.client.replication.mainreplication)
 local soundUtil = require(rep.util.soundUtil)
 
 local stopped = false
-local buffers = {}
+local buffers = buffers
 
 if getgenv().HBM == nil then getgenv().HBM = false end
 if type(getgenv().HBM) == "number" then
     getgenv().HBM = math.clamp(getgenv().HBM, 5, 80)
 end
-
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
-end
-game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 local kjPreload = nil
 
@@ -110,16 +149,16 @@ local function SignatureDribble()
     if not char or Stunned() or not HasBall() or IsOnCD("skill2") then return end
     CancelMove()
     DoCD("skill2", 8)
-    
+
     local humanoid = char.Humanoid
     local root = char.HumanoidRootPart
-    
+
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://137498651201631"
     local track = humanoid:LoadAnimation(anim)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-    
+
     task.delay(0, function()
         if not char or not char.Parent then return end
         pcall(function() KJVFX.KJSignatureDribble(char) end)
@@ -218,24 +257,24 @@ end
 local function Dropkick()
     local char = plr.Character
     if not char or Stunned() or IsOnCD("skill4") then return end
-    
+
     CancelMove()
     DoCD("skill4", 10)
     local humanoid = char.Humanoid
     local root = char.HumanoidRootPart
     char.state.stun.Value = true
-    
+
     pcall(function() soundUtil:play(kjFolder["20-20-20 Dropkick"].DropkickUse, root) end)
-    
+
     local track = humanoid:LoadAnimation(kjFolder["20-20-20 Dropkick"].Use)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-    
+
     task.spawn(function() pcall(function() KJVFX.KJDropkick(char, char) end) end)
-    
-    task.delay(6.97, function() 
+
+    task.delay(6.97, function()
         if char and char.state then
-            char.state.stun.Value = false 
+            char.state.stun.Value = false
         end
     end)
 end
@@ -289,7 +328,7 @@ local function UnlimitedFlexworks()
         root.CFrame = goal.CFrame
         repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
         task.wait(0.2)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
+        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0), "basicShot"}})
     end
 
     humanoid.WalkSpeed = 40
@@ -302,31 +341,31 @@ local function KJFlow()
     local char = plr.Character
     if not char or Stunned() or kjFlowOnCD then return end
     if HasBall() then return end
-    
+
     kjFlowOnCD = true
     char.state.stun.Value = true
-    
+
     local humanoid = char.Humanoid
     local root = char.HumanoidRootPart
-    
+
     plr:SetAttribute("style", "KJ")
-    
+
     local originalSpeed = humanoid.WalkSpeed
     humanoid.WalkSpeed = 0
-    
+
     local track = humanoid:LoadAnimation(kjFolder["Off Ball Flow"].User)
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
-    
-    task.spawn(function() 
-        pcall(function() KJVFX.KJOffBallAwk(char) end) 
+
+    task.spawn(function()
+        pcall(function() KJVFX.KJOffBallAwk(char) end)
     end)
-    
+
     if kjFlowSound and kjFlowSound.IsPlaying then
         kjFlowSound:Stop()
         kjFlowSound:Destroy()
     end
-    
+
     kjFlowSound = Instance.new("Sound")
     kjFlowSound.SoundId = "rbxassetid://81612016582519"
     kjFlowSound.Volume = 3
@@ -334,7 +373,7 @@ local function KJFlow()
     kjFlowSound.MinDistance = 10
     kjFlowSound.Parent = root
     kjFlowSound:Play()
-    
+
     task.delay(7.98, function()
         char.state.stun.Value = false
         humanoid.WalkSpeed = originalSpeed or 40
@@ -348,36 +387,36 @@ local function Setup(char)
     task.wait(0.1)
     local hotbar = plr.PlayerGui:WaitForChild("Hotbar")
     local buttons = hotbar.Backpack.Hotbar
-    
+
     buttons.skill1.Base.MouseButton1Down:Connect(Handball)
     buttons.skill2.Base.MouseButton1Down:Connect(SignatureDribble)
     buttons.skill3.Base.MouseButton1Down:Connect(StoicBomb)
     buttons.skill4.Base.MouseButton1Down:Connect(Dropkick)
     buttons.skill5.Base.MouseButton1Down:Connect(UnlimitedFlexworks)
-    
+
     buttons.skill1.Base.ToolName.Text = "Handball"
     buttons.skill2.Base.ToolName.Text = "Signature Dribble"
     buttons.skill3.Base.ToolName.Text = "Stoic Bomb"
     buttons.skill4.Base.ToolName.Text = "20-20-20 Drop-Kick"
     buttons.skill5.Base.ToolName.Text = "Unlimited Flex Shots"
-    
+
     buttons.skill1.Base.Reuse.Text = "Ball"
     buttons.skill2.Base.Reuse.Text = "Ball"
     buttons.skill3.Base.Reuse.Text = "Off Ball"
     buttons.skill4.Base.Reuse.Text = "Off Ball"
     buttons.skill5.Base.Reuse.Text = "Ball"
-    
-    for i = 1, 5 do 
+
+    for i = 1, 5 do
         buttons["skill"..i].Base.Reuse.Visible = true
         buttons["skill"..i].Visible = true
     end
-    
+
     hotbar.MagicHealth.Awakening.Text = "20 Series"
     hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
         ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(168, 0, 0))
     }
-    
+
     char:GetAttributeChangedSignal("FlowActive"):Connect(function()
         if char:GetAttribute("FlowActive") == true and not stopped then
             char:SetAttribute("FlowActive", false)
@@ -401,14 +440,14 @@ UserInputService.InputBegan:Connect(function(input, bg)
     elseif input.KeyCode == Enum.KeyCode.Four then Dropkick()
     elseif input.KeyCode == Enum.KeyCode.Five then UnlimitedFlexworks()
     elseif input.KeyCode == Enum.KeyCode.G then KJFlow()
-    elseif input.KeyCode == Enum.KeyCode.F4 then 
+    elseif input.KeyCode == Enum.KeyCode.F4 then
         stopped = true
         if kjFlowSound then
             kjFlowSound:Stop()
             kjFlowSound:Destroy()
             kjFlowSound = nil
         end
-        print("stopped") 
+        print("stopped")
     end
 end)
 
