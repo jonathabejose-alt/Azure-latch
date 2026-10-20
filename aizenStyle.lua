@@ -35,7 +35,7 @@ do
         end
     end
 end
-game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
+
 
 local stopped = false
 local aizenAwkOnCD = false
