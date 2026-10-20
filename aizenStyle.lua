@@ -8,14 +8,45 @@ local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 
 local buffers = {}
-loadstring(game:HttpGet("https://pastebin.com/raw/8XJh7dzh"))()
-repeat task.wait() until game.Lighting:FindFirstChild("BUFFERSTRINGS")
-for _, val in ipairs(game.Lighting:FindFirstChild("BUFFERSTRINGS"):GetChildren()) do
-    buffers[val.Name] = val.Value
+
+do
+	local networking = nil
+	local deadline = tick() + 15
+	repeat
+		local storage = rep:FindFirstChild("BytenetStorage")
+		networking = storage and storage:FindFirstChild("Networking")
+		if not networking then task.wait(0.5) end
+	until networking or tick() > deadline
+	if networking then
+		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
+		if ok and parsed and parsed.packets then
+			for name, byteNum in pairs(parsed.packets) do
+				buffers[name] = string.char(byteNum)
+			end
+			if buffers["bytenet_use"] then
+				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
+			end
+			if buffers["bytenet_findBall"] then
+				buffers["grabball"] = buffers["bytenet_findBall"]
+			end
+			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
+			if old then old:Destroy() end
+			local folder = Instance.new("Folder")
+			folder.Name = "BUFFERSTRINGS"
+			folder.Parent = Lighting
+			for name, val in pairs(buffers) do
+				local sv = Instance.new("StringValue")
+				sv.Name = name
+				sv.Value = val
+				sv.Parent = folder
+			end
+		end
+	end
 end
-game.Lighting:FindFirstChild("BUFFERSTRINGS"):Destroy()
 
 local stopped = false
 local aizenAwkOnCD = false
@@ -65,9 +96,9 @@ local function DoCD(name, duration)
         btn.Cooldown.Visible = true
         btn.Cooldown.Size = UDim2.new(1, 0, -1, 0)
         TweenService:Create(btn.Cooldown, TweenInfo.new(duration, Enum.EasingStyle.Linear), {Size = UDim2.new(1, 0, 0, 0)}):Play()
-        task.delay(duration, function() 
+        task.delay(duration, function()
             if btn and btn.Cooldown then
-                btn.Cooldown.Visible = false 
+                btn.Cooldown.Visible = false
             end
         end)
     end
@@ -107,7 +138,7 @@ local function TeleportShot(char, shootDelay)
 
         local function executeShot()
             remote:FireServer(buffer.fromstring(buffers["base"]), {
-                {"kick", 100, false, root.CFrame.LookVector * 1e19}
+                {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
             })
         end
 
@@ -312,11 +343,11 @@ local function AizenAwaken()
 
     task.delay(21, function()
         if not char or not char.Parent then return end
-        
+
         TweenService:Create(humanoid, TweenInfo.new(0.1, Enum.EasingStyle.Cubic), {HipHeight = 0}):Play()
         root.Anchored = false
         plr:SetAttribute("style", savedStyle)
-        
+
         task.delay(30, function()
             aizenAwkOnCD = false
         end)
@@ -325,7 +356,7 @@ end
 
 local function StopMoveset()
     stopped = true
-    
+
     pcall(function()
         local hotbar = plr.PlayerGui:FindFirstChild("Hotbar")
         if hotbar then
@@ -345,7 +376,7 @@ local function Setup(char)
     repeat task.wait() until plr.Team ~= game.Teams.lobby
     task.wait(0.1)
     BlockOriginalSkills()
-    
+
     local hotbar = plr.PlayerGui:WaitForChild("Hotbar")
     local buttons = hotbar.Backpack.Hotbar
 
@@ -362,7 +393,7 @@ local function Setup(char)
     buttons.skill3.Base.Reuse.Text = "Ball"
     buttons.skill4.Base.Reuse.Text = "Any"
 
-    for i = 1, 4 do 
+    for i = 1, 4 do
         buttons["skill"..i].Base.Reuse.Visible = true
         buttons["skill"..i].Visible = true
     end
@@ -384,36 +415,64 @@ plr.CharacterAdded:Connect(function(char)
     Setup(char)
 end)
 
+local brandedGui = nil
+
+local function ApplyBranding()
+    local hotbar = plr.PlayerGui:WaitForChild("Hotbar", 30)
+    if not hotbar then return end
+    local backpack = hotbar:WaitForChild("Backpack", 30)
+    if not backpack then return end
+    local bar = backpack:WaitForChild("Hotbar", 30)
+    if not bar then return end
+
+    local labels = {
+        skill1 = "Shortcut",
+        skill2 = "Exterminate",
+        skill3 = "EXE Strike",
+        skill4 = "Altisimus",
+        skill5 = "whirlwind shot",
+    }
+    for slot, text in pairs(labels) do
+        local btn = bar:FindFirstChild(slot)
+        local toolName = btn and btn:FindFirstChild("Base") and btn.Base:FindFirstChild("ToolName")
+        if toolName then toolName.Text = text end
+    end
+
+    local magic = hotbar:WaitForChild("MagicHealth", 30)
+    if not magic then return end
+    local awakening = magic:FindFirstChild("Awakening")
+    if awakening then awakening.Text = "FLOW" end
+    local textLabel = magic:FindFirstChild("TextLabel")
+    if textLabel then textLabel.Text = "Many Souls To Play With." end
+
+    if brandedGui ~= magic then
+        local health = magic:FindFirstChild("Health")
+        local frame = health and health:FindFirstChild("Frame")
+        local gradient = frame and frame:FindFirstChildOfClass("UIGradient")
+        if gradient then
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0)),
+            })
+        end
+        brandedGui = magic
+    end
+end
+
 task.spawn(function()
     while true do
         if stopped then break end
-        local gui = plr:WaitForChild("PlayerGui", 2)
-        if gui then
-            local hotbar = gui:FindFirstChild("Hotbar")
-            if hotbar then
-                hotbar.Backpack.Hotbar.skill1.Base.ToolName.Text = "Goryu Volley"
-                hotbar.Backpack.Hotbar.skill2.Base.ToolName.Text = "Goryu On-Ball"
-                hotbar.Backpack.Hotbar.skill3.Base.ToolName.Text = "Goryu Feint"
-                hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Shatter Second"
-
-                hotbar.MagicHealth.Awakening.Text = "FLOW"
-                hotbar.MagicHealth.TextLabel.Text = "Welcome to my Soul Society."
-                hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 100, 255)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 0, 200))
-                }
-            end
-        end
-        task.wait(0.1)
+        pcall(ApplyBranding)
+        if stopped then break end
+        plr.CharacterAdded:Wait()
+        task.wait(1)
     end
 end)
 
 UserInputService.InputBegan:Connect(function(input, bg)
     if bg or stopped then return end
 
-    if input.KeyCode == Enum.KeyCode.G then
-        AizenAwaken()
-    elseif input.KeyCode == Enum.KeyCode.One then
+    if input.KeyCode == Enum.KeyCode.One then
         GoryuVolley()
     elseif input.KeyCode == Enum.KeyCode.Two then
         GoryuOnBall()
@@ -421,7 +480,9 @@ UserInputService.InputBegan:Connect(function(input, bg)
         GoryuFeint()
     elseif input.KeyCode == Enum.KeyCode.Four then
         ShatterSecond()
-    elseif input.KeyCode == Enum.KeyCode.F5 then
+    elseif input.KeyCode == Enum.KeyCode.Five then
+        AizenAwaken()
+    elseif input.KeyCode == Enum.KeyCode.F4 then
         StopMoveset()
     end
 end)
