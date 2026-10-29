@@ -417,7 +417,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
         track:Play()
         pcall(function() require(rep.client.replication).ronaldoIttooeasy(char) end)
         task.wait(18.2)
-        root.CFrame = root.CFrame - Vector3.new(0, 30, 0)
+        root.CFrame = root.CFrame - Vector3.new(0, 80, 0)
         root.Anchored = false
         local goal = plr.Team.Name == "A" and workspace.map.Bgoal or workspace.map.Agoal
         local barriar = plr.Team.Name == "A" and workspace.map.gkbarriar.Bbarriar or workspace.map.gkbarriar.Abarriar
