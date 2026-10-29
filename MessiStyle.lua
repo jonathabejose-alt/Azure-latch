@@ -1,10 +1,39 @@
+local buffers = setmetatable({}, {__index = function(_, k) return k end})
+
+NET = (function()
+    local Packets = require(game:GetService("ReplicatedStorage"):WaitForChild("packets"))
+    local warned = {}
+    local function warnOnce(key, message)
+        if not warned[key] then warned[key] = true; warn("[Network Shim] " .. message) end
+    end
+    local function convertToString(inputData)
+        if type(inputData) == "string" then return inputData end
+        if typeof(inputData) == "buffer" then return buffer.tostring(inputData) end
+    end
+    local netShim = {}
+    function netShim.FireServer(_, dataBuffer, actionsList)
+        local bufferType = convertToString(dataBuffer)
+        if bufferType == "base" then
+            if type(actionsList) ~= "table" then return end
+            for _, primaryAction in ipairs(actionsList) do
+                if type(primaryAction) == "table" then
+                    pcall(function() Packets.bytenet_use.send(primaryAction) end)
+                end
+            end
+        elseif bufferType == "grabball" then
+            pcall(function() Packets.bytenet_findBall.send(actionsList) end)
+        end
+    end
+    netShim.fireServer = netShim.FireServer
+    return netShim
+end)()
 local plr = game.Players.LocalPlayer
 local cam = game.Workspace.CurrentCamera
 local rep = game:FindFirstChild("ReplicatedStorage") or game:GetService("ReplicatedStorage")
 if not rep then
     rep = game:WaitForChild("ReplicatedStorage")
 end
-local remote = rep:WaitForChild("ByteNetReliable")
+local remote = rep:WaitForChild("Network"):WaitForChild("NetworkSystem"):WaitForChild("Reliable")
 local messiFolder = rep.Resources.messi
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -12,45 +41,6 @@ local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-
-local buffers = {}
-
-do
-	local networking = nil
-	local deadline = tick() + 15
-	repeat
-		local storage = rep:FindFirstChild("BytenetStorage")
-		networking = storage and storage:FindFirstChild("Networking")
-		if not networking then task.wait(0.5) end
-	until networking or tick() > deadline
-	if networking then
-		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
-		if ok and parsed and parsed.packets then
-			for name, byteNum in pairs(parsed.packets) do
-				buffers[name] = string.char(byteNum)
-			end
-			if buffers["bytenet_use"] then
-				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
-			end
-			if buffers["bytenet_findBall"] then
-				buffers["grabball"] = buffers["bytenet_findBall"]
-			end
-			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
-			if old then old:Destroy() end
-			local folder = Instance.new("Folder")
-			folder.Name = "BUFFERSTRINGS"
-			folder.Parent = Lighting
-			for name, val in pairs(buffers) do
-				local sv = Instance.new("StringValue")
-				sv.Name = name
-				sv.Value = val
-				sv.Parent = folder
-			end
-		end
-	end
-end
 
 local messiVFX = require(rep.client.replication.otherReplication.messiVFX)
 local mainreplication = require(rep.client.replication.mainreplication)
@@ -432,8 +422,8 @@ local function TeleportShot(char, shootDelay)
             if getgenv().SkillShoot then
                 ShootSkill()
             else
-                remote:FireServer(buffer.fromstring(buffers["base"]), {
-                    {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
+                NET:FireServer(buffer.fromstring(buffers["base"]), {
+                    {"kick", 29, false, root.CFrame.LookVector}
                 })
             end
         end
@@ -598,7 +588,7 @@ local function SuperPass()
     local power = math.clamp(distance / 1.4, 18, 95)
     remote:FireServer(
         buffer.fromstring(buffers["base"]),
-        { {"kick", power, true, Vector3.new(kickDir.X, kickDir.Y, kickDir.Z), "basicShot"} }
+        { {"kick", power, true, Vector3.new(kickDir.X, kickDir.Y, kickDir.Z)} }
     )
 end
 
@@ -626,7 +616,7 @@ local function Intercept()
     humanoid.HipHeight = 10
     task.wait(0.3)
     for _ = 1, 9 do
-        remote:FireServer(buffer.fromstring(buffers["grabball"]))
+        NET:FireServer(buffer.fromstring(buffers["grabball"]))
         task.wait(0.05)
         if HasBall() then break end
     end
@@ -710,7 +700,7 @@ local function NutmegSteal()
             if track.Animation.AnimationId == "rbxassetid://109744655458082" then track:Stop(0) end
         end)
         task.wait(0.5)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"tackle"}})
+        NET:FireServer(buffer.fromstring(buffers["base"]), {{"tackle"}})
         task.wait(0.3)
         animBlock:Disconnect()
         if HasBall() then
@@ -746,7 +736,7 @@ local function NutmegSteal()
         if track.Animation.AnimationId == "rbxassetid://109744655458082" then track:Stop(0) end
     end)
     task.wait(0.08)
-    remote:FireServer(buffer.fromstring(buffers["base"]), {{"tackle"}})
+    NET:FireServer(buffer.fromstring(buffers["base"]), {{"tackle"}})
     task.wait(0.3)
     animBlock:Disconnect()
     if HasBall() then
@@ -882,12 +872,14 @@ local function Setup(char)
         buttons["skill"..i].Base.Reuse.Visible = true
         buttons["skill"..i].Visible = true
     end
-    hotbar.MagicHealth.Awakening.Text = "The Goat."
-    hotbar.MagicHealth.TextLabel.Text = "Argentina's Best."
-    hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 157, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 157, 255))
-    }
+    pcall(function()
+        hotbar.MagicHealth.Awakening.Text = "The Goat."
+        hotbar.MagicHealth.TextLabel.Text = "Argentina's Best."
+        hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 157, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 157, 255))
+        }
+    end)
 
     createMobileUI({Dribble, Riptide, SuperPass, Skill4, MessiFlow})
 
