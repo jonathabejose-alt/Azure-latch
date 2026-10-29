@@ -3,53 +3,47 @@ if getgenv().ScaredWare and getgenv().ScaredWare.Unload then
 end
 
 local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local plr = player
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
-local StarterGui = game:GetService("StarterGui")
-local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local TeleportService = game:GetService("TeleportService")
-local player = Players.LocalPlayer
+local buffers = setmetatable({}, {__index = function(_, k) return k end})
 
-local BNR = ReplicatedStorage:WaitForChild("ByteNetReliable")
-
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-local buffers = {}
-do
-    local networking = nil
-    local deadline = tick() + 15
-    repeat
-        local storage = ReplicatedStorage:FindFirstChild("BytenetStorage")
-        networking = storage and storage:FindFirstChild("Networking")
-        if not networking then task.wait(0.5) end
-    until networking or tick() > deadline
-    if networking then
-        local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
-        if ok and parsed and parsed.packets then
-            for name, byteNum in pairs(parsed.packets) do
-                buffers[name] = string.char(byteNum)
+NET = (function()
+    local Packets = require(game:GetService("ReplicatedStorage"):WaitForChild("packets"))
+    local warned = {}
+    local function warnOnce(key, message)
+        if not warned[key] then warned[key] = true; warn("[Network Shim] " .. message) end
+    end
+    local function convertToString(inputData)
+        if type(inputData) == "string" then return inputData end
+        if typeof(inputData) == "buffer" then return buffer.tostring(inputData) end
+    end
+    local netShim = {}
+    function netShim.FireServer(_, dataBuffer, actionsList)
+        local bufferType = convertToString(dataBuffer)
+        if bufferType == "base" then
+            if type(actionsList) ~= "table" then return end
+            for _, primaryAction in ipairs(actionsList) do
+                if type(primaryAction) == "table" then
+                    pcall(function() Packets.bytenet_use.send(primaryAction) end)
+                end
             end
-            if buffers["bytenet_use"] then
-                buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
-            end
-            if buffers["bytenet_findBall"] then
-                buffers["grabball"] = buffers["bytenet_findBall"]
-            end
+        elseif bufferType == "grabball" then
+            pcall(function() Packets.bytenet_findBall.send(actionsList) end)
         end
     end
-end
+    netShim.fireServer = netShim.FireServer
+    return netShim
+end)()
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
 
 local vector = {
     create = function(x, y, z) return Vector3.new(x, y, z) end
 }
 
-local role = ReplicatedStorage:WaitForChild("BytenetStorage"):WaitForChild("Networking").Value:match('"bytenet_selectRole"%s*:%s*(%d+)')
-role = role and tonumber(role)
-local pick = string.char(role)
 
 local VindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Skinny-yz/vindUI-Test/main/full.luau"))()
 
@@ -804,7 +798,7 @@ getgenv().AutoPlayTab:AddToggle({
                         local or2 = p.Character:FindFirstChild("HumanoidRootPart")
                         if ob and or2 and root then
                             root.CFrame = ob.CFrame
-                            BNR:FireServer(buffer.fromstring(buffers["base"]), { { "tackle" } })
+                            NET:FireServer(buffer.fromstring(buffers["base"]), { { "tackle" } })
                         end
                     end
                 end
@@ -826,7 +820,7 @@ getgenv().AutoPlayTab:AddToggle({
                         if root and goal then
                             root.CFrame = goal.CFrame
                             task.wait(0.185)
-                            BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0), "basicShot"}})
+                            NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
                         end
                     end
                 end)
@@ -890,7 +884,7 @@ local function fireSkill(skillName, targetPlayer)
     else
         args = { buffer.fromstring(buffers["base"]), {{ skillName }} }
     end
-    BNR:FireServer(unpack(args))
+    NET:FireServer(unpack(args))
 end
 
 local function setupPlayerCounter(plr)
@@ -966,7 +960,7 @@ local function doAirDribble()
     anim.AnimationId = "rbxassetid://76587445975710"
     hum:LoadAnimation(anim):Play()
     local dir = root.CFrame.LookVector
-    BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 28, false, Vector3.new(dir.X*0.75, 0.65, dir.Z*0.75), "basicShot"}})
+    NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 28, false, Vector3.new(dir.X*0.75, 0.65, dir.Z*0.75)}})
 end
 
 getgenv().AutoPlayTab:AddToggle({ Text = "Air Dribble", Icon = "Lucide:wind", Flag = "SW_airDribble", Default = false, Callback = function(v) airDribState.enabled = v end })
@@ -1023,7 +1017,7 @@ addConnection(RunService.RenderStepped:Connect(function()
             local rel = ball.Position.Y - (hrp2.Position.Y - 2)
             if rel < autoActState.minHeight then return end
         end
-        BNR:FireServer(buffer.fromstring(buffers["base"]), {{"skill" .. autoActState.moveNum}})
+        NET:FireServer(buffer.fromstring(buffers["base"]), {{"skill" .. autoActState.moveNum}})
     end
 end))
 
@@ -1049,7 +1043,7 @@ task.spawn(function()
     if getgenv().__SW_kickHook then return end
     getgenv().__SW_kickHook = true
 
-    local BNR2 = ReplicatedStorage:WaitForChild("ByteNetReliable")
+    local BNR = NET
     local rawMeta = getrawmetatable(game)
     local oldIndex = rawMeta.__index
     local oldNamecall = rawMeta.__namecall
@@ -1214,7 +1208,7 @@ addConnection(RunService.RenderStepped:Connect(function()
     end
     if autoActivateSkillPad and not autoSkillFired[padIndex] then
         autoSkillFired[padIndex] = true
-        BNR:FireServer(buffer.fromstring(buffers["base"]), {{"skill" .. skillNumber}})
+        NET:FireServer(buffer.fromstring(buffers["base"]), {{"skill" .. skillNumber}})
         task.delay(1, function() autoSkillFired[padIndex] = nil end)
     end
 end))
@@ -1545,7 +1539,7 @@ addConnection(RunService.Heartbeat:Connect(function()
     local char = player.Character
     local hrp2 = char and char:FindFirstChild("HumanoidRootPart")
     if hrp2 and (hrp2.Position - ball.Position).Magnitude <= bmRadius then
-        pcall(function() BNR:FireServer(buffer.fromstring(buffers["grabball"])) end)
+        pcall(function() NET:FireServer(buffer.fromstring(buffers["grabball"])) end)
     end
 end))
 
@@ -1572,7 +1566,7 @@ local function stealBall(aikuMode, bringBack)
                     local b = p.Character and p.Character:FindFirstChild("Ball")
                     if b then
                         hrp2.CFrame = b.CFrame
-                        BNR:FireServer(buffer.fromstring(buffers["base"]), {{skillName}})
+                        NET:FireServer(buffer.fromstring(buffers["base"]), {{skillName}})
                     end
                 end
             end
@@ -1663,7 +1657,7 @@ getgenv().BallControlTab:AddButton({
             while flowPartData.flowActive and flow.Value < 100 do
                 for i = 1, 25 do
                     if not flowPartData.flowActive or flow.Value >= 100 then break end
-                    BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 1, false, vector.create(0, 1, 0), "basicShot"}})
+                    NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 1, false, vector.create(0, 1, 0)}})
                     task.wait(0.15)
                 end
                 if not flowPartData.flowActive or flow.Value >= 100 then break end
@@ -1677,7 +1671,7 @@ getgenv().BallControlTab:AddButton({
 
                 for i = 1, 2 do
                     if not flowPartData.flowActive or flow.Value >= 100 then break end
-                    BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 1, false, vector.create(0, 1, 0), "basicShot"}})
+                    NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 1, false, vector.create(0, 1, 0)}})
                     task.wait(0.12)
                 end
                 if not flowPartData.flowActive or flow.Value >= 100 then break end
@@ -1744,7 +1738,7 @@ getgenv().BallControlTab:AddToggle({
                             local or2 = p.Character:FindFirstChild("HumanoidRootPart")
                             if ob and or2 and root then
                                 root.CFrame = ob.CFrame
-                                BNR:FireServer(buffer.fromstring(buffers["base"]), { { "tackle" } })
+                                NET:FireServer(buffer.fromstring(buffers["base"]), { { "tackle" } })
                             end
                         end
                     end
@@ -2532,7 +2526,7 @@ addConnection(UserInputService.InputBegan:Connect(function(input, gp)
     local targetChar = getClosestPlayerToCursor()
     if not targetChar then return end
     passingState.busy = true
-    BNR:FireServer(buffer.fromstring(buffers["base"]), {{skillName, targetChar}})
+    NET:FireServer(buffer.fromstring(buffers["base"]), {{skillName, targetChar}})
     task.delay(0.1, function() passingState.busy = false end)
 end))
 
@@ -2583,7 +2577,7 @@ addConnection(RunService.Heartbeat:Connect(function()
     if not char or not char:FindFirstChild("Ball") then return end
     autoPassState.lastPass = now
     local closest = getClosestPlayerToCursor()
-    if closest then BNR:FireServer(buffer.fromstring(buffers["base"]), {{"skill1", closest}}) end
+    if closest then NET:FireServer(buffer.fromstring(buffers["base"]), {{"skill1", closest}}) end
 end))
 
 getgenv().AutoPlayTab:AddDivider()
@@ -2692,7 +2686,7 @@ getgenv().AutoPlayTab:AddToggle({
                     local pos = myHRP.Position
                     local tpos = targetHRP.Position
                     myHRP.CFrame = CFrame.lookAt(pos, Vector3.new(tpos.X, pos.Y, tpos.Z))
-                    BNR:FireServer(buffer.fromstring(buffers["base"]), {{"tackle"}})
+                    NET:FireServer(buffer.fromstring(buffers["base"]), {{"tackle"}})
                 end)
             end)
             table.insert(autoStealState.conns, c)
@@ -2828,7 +2822,7 @@ local function startCeleronGK()
             look.Enabled = true
             look.CFrame = CFrame.lookAt(hrp2.Position, Vector3.new(hr.Position.X, hrp2.Position.Y, hr.Position.Z))
             local dist = (hrp2.Position - hr.Position).Magnitude
-            if dist <= tackleRadius then BNR:FireServer(unpack(tackleArgs)) end
+            if dist <= tackleRadius then NET:FireServer(unpack(tackleArgs)) end
         elseif ball then
             local rawVel = ball.AssemblyLinearVelocity
             velSmooth = velSmooth:Lerp(rawVel, math.clamp(dt*15, 0, 1))
@@ -2846,13 +2840,13 @@ local function startCeleronGK()
             local dist = (hrp2.Position - ball.Position).Magnitude
             if dist > tackleRadius and dist <= 37 and ball.Position.Y > hrp2.Position.Y + 4 then hum.Jump = true end
             if dist <= tackleRadius then
-                BNR:FireServer(unpack(tackleArgs))
+                NET:FireServer(unpack(tackleArgs))
                 if not magnetBurst then
                     magnetBurst = true
                     task.spawn(function()
                         local start = os.clock()
                         while os.clock() - start < 0.897 and s.running do
-                            BNR:FireServer(grabBuf)
+                            NET:FireServer(grabBuf)
                             task.wait(0.125)
                         end
                         magnetBurst = false
@@ -2973,7 +2967,7 @@ local function startDaffyGK()
             local dist = (hrp2.Position - ball.Position).Magnitude
             if dist <= 60 then
                 hum.Jump = ball.Position.Y >= hrp2.Position.Y + 6
-                BNR:FireServer(unpack(tackleArgs))
+                NET:FireServer(unpack(tackleArgs))
             end
         end))
         table.insert(s.conns, hum.Died:Connect(stopDaffyGK))
@@ -3017,14 +3011,14 @@ local function firePacketsIfNear()
     if not root then return end
     if (root.Position - Vector3.new(-371, 13, -1599)).Magnitude <= 15 or
        (root.Position - Vector3.new(-196, 13, -1599)).Magnitude <= 15 then
-        BNR:FireServer(buffer.fromstring(pick .. "\001\001\000A"))
-        BNR:FireServer(buffer.fromstring(pick .. "\001\001\000B"))
+        pcall(function() require(game:GetService("ReplicatedStorage"):WaitForChild("packets")).bytenet_selectRole.send({index = 1, t = "A"}) end)
+        pcall(function() require(game:GetService("ReplicatedStorage"):WaitForChild("packets")).bytenet_selectRole.send({index = 1, t = "B"}) end)
     end
 end
 
 local function fireGKPackets()
-    BNR:FireServer(buffer.fromstring(pick .. "\005\001\000B"))
-    BNR:FireServer(buffer.fromstring(pick .. "\005\001\000A"))
+    pcall(function() require(game:GetService("ReplicatedStorage"):WaitForChild("packets")).bytenet_selectRole.send({index = 5, t = "B"}) end)
+    pcall(function() require(game:GetService("ReplicatedStorage"):WaitForChild("packets")).bytenet_selectRole.send({index = 5, t = "A"}) end)
 end
 
 getgenv().GoalkeeperTab:AddToggle({
@@ -3210,7 +3204,7 @@ local function farmStealBall()
             if oBall and root then
                 task.wait(0.5)
                 root.CFrame = oBall.CFrame
-                BNR:FireServer(buffer.fromstring(buffers["base"]), {{"tackle"}})
+                NET:FireServer(buffer.fromstring(buffers["base"]), {{"tackle"}})
             end
         end
     end
@@ -3274,7 +3268,7 @@ getgenv().ExploitsTab:AddToggle({
                                 if char then char:BreakJoints() end
                                 task.wait(8)
                                 lastFiredTeam = (lastFiredTeam == "A") and "B" or "A"
-                                BNR:FireServer(buffer.fromstring(pick .. "\001\001\000" .. lastFiredTeam))
+                                pcall(function() require(game:GetService("ReplicatedStorage"):WaitForChild("packets")).bytenet_selectRole.send({index = 1, t = lastFiredTeam}) end)
                                 teamSwitching = false
                             end)
                         end
@@ -3291,7 +3285,7 @@ getgenv().ExploitsTab:AddToggle({
                             task.wait(0.5)
                             root.CFrame = targetGoal.CFrame
                             task.wait(0.185)
-                            BNR:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 50, false, vector.create(0, 1, 0), "basicShot"}})
+                            NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 50, false, vector.create(0, 1, 0)}})
                             firePacketsIfNear()
                         end
                     end
