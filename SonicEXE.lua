@@ -1,3 +1,32 @@
+local buffers = setmetatable({}, {__index = function(_, k) return k end})
+
+NET = (function()
+    local Packets = require(game:GetService("ReplicatedStorage"):WaitForChild("packets"))
+    local warned = {}
+    local function warnOnce(key, message)
+        if not warned[key] then warned[key] = true; warn("[Network Shim] " .. message) end
+    end
+    local function convertToString(inputData)
+        if type(inputData) == "string" then return inputData end
+        if typeof(inputData) == "buffer" then return buffer.tostring(inputData) end
+    end
+    local netShim = {}
+    function netShim.FireServer(_, dataBuffer, actionsList)
+        local bufferType = convertToString(dataBuffer)
+        if bufferType == "base" then
+            if type(actionsList) ~= "table" then return end
+            for _, primaryAction in ipairs(actionsList) do
+                if type(primaryAction) == "table" then
+                    pcall(function() Packets.bytenet_use.send(primaryAction) end)
+                end
+            end
+        elseif bufferType == "grabball" then
+            pcall(function() Packets.bytenet_findBall.send(actionsList) end)
+        end
+    end
+    netShim.fireServer = netShim.FireServer
+    return netShim
+end)()
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
@@ -12,43 +41,6 @@ local other = rep.client.replication.otherReplication
 local V2011 = require(other["2011xVFX"])
 local VSONIC = require(other.sonicVFX)
 local REPL = require(rep.client.replication)
-local remote = rep:WaitForChild("ByteNetReliable")
-
-local buffers = {}
-do
-	local networking = nil
-	local deadline = tick() + 15
-	repeat
-		local storage = rep:FindFirstChild("BytenetStorage")
-		networking = storage and storage:FindFirstChild("Networking")
-		if not networking then task.wait(0.5) end
-	until networking or tick() > deadline
-	if networking then
-		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
-		if ok and parsed and parsed.packets then
-			for name, byteNum in pairs(parsed.packets) do
-				buffers[name] = string.char(byteNum)
-			end
-			if buffers["bytenet_use"] then
-				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
-			end
-			if buffers["bytenet_findBall"] then
-				buffers["grabball"] = buffers["bytenet_findBall"]
-			end
-			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
-			if old then old:Destroy() end
-			local folder = Instance.new("Folder")
-			folder.Name = "BUFFERSTRINGS"
-			folder.Parent = Lighting
-			for name, val in pairs(buffers) do
-				local sv = Instance.new("StringValue")
-				sv.Name = name
-				sv.Value = val
-				sv.Parent = folder
-			end
-		end
-	end
-end
 
 local SHOT_ANIM = "rbxassetid://99881509878056"
 local SHOT_SOUND = "rbxassetid://126011406873336"
@@ -125,13 +117,13 @@ local function SendKick(power, direction)
 	power = power or 29
 	local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
 	direction = direction or (root and root.CFrame.LookVector) or Vector3.new(0, 0, 1)
-	remote:FireServer(buffer.fromstring(buffers["base"]), {
-		{"kick", power, false, direction * 1e19, "basicShot"}
+	NET:FireServer(buffer.fromstring(buffers["base"]), {
+		{"kick", power, false, direction}
 	})
 end
 
 local function SendGrab()
-	remote:FireServer(buffer.fromstring(buffers["grabball"]))
+	NET:FireServer(buffer.fromstring(buffers["grabball"]))
 end
 
 local function StopTracks(humanoid)
@@ -254,8 +246,8 @@ local function TeleportShot(char, shootDelay)
         if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
 
         local function executeShot()
-            remote:FireServer(buffer.fromstring(buffers["base"]), {
-                {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
+            NET:FireServer(buffer.fromstring(buffers["base"]), {
+                {"kick", 29, false, root.CFrame.LookVector}
             })
         end
 
@@ -311,7 +303,7 @@ local function Shortcut()
 	StopTracks(humanoid)
 	local track = PlayAnimation(humanoid, "rbxassetid://116455589260954")
 
-	pcall(function() REPL.DashSuper(char) end)
+	pcall(function() require(rep.client.replication).DashSuper(char) end)
 	PlaySound(root, "rbxassetid://111414558186727", 2, 3)
 
 	Stun(0.3, false)
@@ -343,7 +335,7 @@ local function Exterminate()
     if getgenv().HBM and type(getgenv().HBM) == "number" then
         local hbmSize = getgenv().HBM
         if dist <= hbmSize then
-            remote:FireServer(buffer.fromstring(buffers["grabball"]))
+            NET:FireServer(buffer.fromstring(buffers["grabball"]))
             task.wait(0.15)
             if HasBall() then
                 grabbedByHBM = true
@@ -369,7 +361,7 @@ local function Exterminate()
 
             task.wait(0.1)
 
-            remote:FireServer(buffer.fromstring(buffers["grabball"]))
+            NET:FireServer(buffer.fromstring(buffers["grabball"]))
             task.wait(0.05)
 
             if HasBall() then
@@ -533,7 +525,7 @@ local function Shot()
 
 	Stun(0.7, true)
 	PlaySound(root, SHOT_SOUND, 2, 4)
-	pcall(function() VSONIC.sonic_whirlwind_shot(char, 6) end)
+	pcall(function() require(rep.client.replication).sonic_whirlwind_shot(char, 6) end)
 	TeleportShot(char, 1.2)
 
 	local shotTrack = PlayAnimation(humanoid, SHOT_ANIM, Enum.AnimationPriority.Action4)
@@ -860,25 +852,27 @@ local function ApplyBranding()
 		if toolName then toolName.Text = text end
 	end
 
-	local magic = hotbar:WaitForChild("MagicHealth", 30)
-	if not magic then return end
-	local awakening = magic:FindFirstChild("Awakening")
-	if awakening then awakening.Text = "FLOW" end
-	local textLabel = magic:FindFirstChild("TextLabel")
-	if textLabel then textLabel.Text = "Many Souls To Play With." end
+	pcall(function()
+		local magic = hotbar:WaitForChild("MagicHealth", 30)
+		if not magic then return end
+		local awakening = magic:FindFirstChild("Awakening")
+		if awakening then awakening.Text = "FLOW" end
+		local textLabel = magic:FindFirstChild("TextLabel")
+		if textLabel then textLabel.Text = "Many Souls To Play With." end
 
-	if brandedGui ~= magic then
-		local health = magic:FindFirstChild("Health")
-		local frame = health and health:FindFirstChild("Frame")
-		local gradient = frame and frame:FindFirstChildOfClass("UIGradient")
-		if gradient then
-			gradient.Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0)),
-			})
+		if brandedGui ~= magic then
+			local health = magic:FindFirstChild("Health")
+			local frame = health and health:FindFirstChild("Frame")
+			local gradient = frame and frame:FindFirstChildOfClass("UIGradient")
+			if gradient then
+				gradient.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+					ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 0, 0)),
+				})
+			end
+			brandedGui = magic
 		end
-		brandedGui = magic
-	end
+	end)
 end
 
 task.spawn(function()
