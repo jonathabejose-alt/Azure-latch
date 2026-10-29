@@ -1,6 +1,38 @@
+local buffers = setmetatable({}, {__index = function(_, k) return k end})
+
+NET = (function()
+    local Packets = require(game:GetService("ReplicatedStorage"):WaitForChild("packets"))
+    local warned = {}
+    local function warnOnce(key, message)
+        if not warned[key] then
+            warned[key] = true
+            warn("[Network Shim] " .. message)
+        end
+    end
+    local function convertToString(inputData)
+        if type(inputData) == "string" then return inputData end
+        if typeof(inputData) == "buffer" then return buffer.tostring(inputData) end
+    end
+    local netShim = {}
+    function netShim.FireServer(_, dataBuffer, actionsList)
+        local bufferType = convertToString(dataBuffer)
+        if bufferType == "base" then
+            if type(actionsList) ~= "table" then return end
+            for _, primaryAction in ipairs(actionsList) do
+                if type(primaryAction) == "table" then
+                    pcall(function() Packets.bytenet_use.send(primaryAction) end)
+                end
+            end
+        elseif bufferType == "grabball" then
+            pcall(function() Packets.bytenet_findBall.send(actionsList) end)
+        end
+    end
+    netShim.fireServer = netShim.FireServer
+    return netShim
+end)()
 local plr = game.Players.LocalPlayer
 local rep = game:GetService("ReplicatedStorage")
-local remote = rep:WaitForChild("ByteNetReliable")
+local remote = rep:WaitForChild("Network"):WaitForChild("NetworkSystem"):WaitForChild("Reliable")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -8,34 +40,6 @@ local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
-
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-local buffers = {}
-do
-    local networking = nil
-    local deadline = tick() + 15
-    repeat
-        local storage = game:GetService("ReplicatedStorage"):FindFirstChild("BytenetStorage")
-        networking = storage and storage:FindFirstChild("Networking")
-        if not networking then task.wait(0.5) end
-    until networking or tick() > deadline
-    if networking then
-        local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
-        if ok and parsed and parsed.packets then
-            for name, byteNum in pairs(parsed.packets) do
-                buffers[name] = string.char(byteNum)
-            end
-            if buffers["bytenet_use"] then
-                buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
-            end
-            if buffers["bytenet_findBall"] then
-                buffers["grabball"] = buffers["bytenet_findBall"]
-            end
-        end
-    end
-end
-
 
 local stopped = false
 local aizenAwkOnCD = false
@@ -126,8 +130,8 @@ local function TeleportShot(char, shootDelay)
         if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Ball") then return end
 
         local function executeShot()
-            remote:FireServer(buffer.fromstring(buffers["base"]), {
-                {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
+            NET:FireServer(buffer.fromstring(buffers["base"]), {
+                {"kick", 29, false, root.CFrame.LookVector}
             })
         end
 
@@ -416,12 +420,14 @@ task.spawn(function()
                 hotbar.Backpack.Hotbar.skill3.Base.ToolName.Text = "Goryu Feint"
                 hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Shatter Second"
 
-                hotbar.MagicHealth.Awakening.Text = "FLOW"
-                hotbar.MagicHealth.TextLabel.Text = "Welcome to my Soul Society."
-                hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 100, 255)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 0, 200))
-                }
+                pcall(function()
+                    hotbar.MagicHealth.Awakening.Text = "FLOW"
+                    hotbar.MagicHealth.TextLabel.Text = "Welcome to my Soul Society."
+                    hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
+                        ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 100, 255)),
+                        ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 0, 200))
+                    }
+                end)
             end
         end
         task.wait(0.1)
@@ -447,4 +453,3 @@ UserInputService.InputBegan:Connect(function(input, bg)
 end)
 
 print("Aizen Moveset loaded!")
-
