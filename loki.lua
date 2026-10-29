@@ -1,35 +1,37 @@
+local buffers = setmetatable({}, {__index = function(_, k) return k end})
+
+NET = (function()
+    local Packets = require(game:GetService("ReplicatedStorage"):WaitForChild("packets"))
+    local warned = {}
+    local function warnOnce(key, message)
+        if not warned[key] then warned[key] = true; warn("[Network Shim] " .. message) end
+    end
+    local function convertToString(inputData)
+        if type(inputData) == "string" then return inputData end
+        if typeof(inputData) == "buffer" then return buffer.tostring(inputData) end
+    end
+    local netShim = {}
+    function netShim.FireServer(_, dataBuffer, actionsList)
+        local bufferType = convertToString(dataBuffer)
+        if bufferType == "base" then
+            if type(actionsList) ~= "table" then return end
+            for _, primaryAction in ipairs(actionsList) do
+                if type(primaryAction) == "table" then
+                    pcall(function() Packets.bytenet_use.send(primaryAction) end)
+                end
+            end
+        elseif bufferType == "grabball" then
+            pcall(function() Packets.bytenet_findBall.send(actionsList) end)
+        end
+    end
+    netShim.fireServer = netShim.FireServer
+    return netShim
+end)()
  local plr = game.Players.LocalPlayer
 local cam = game.Workspace.CurrentCamera
 
 local stopped = false
-local buffers = {}
 
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-local buffers = {}
-do
-    local networking = nil
-    local deadline = tick() + 15
-    repeat
-        local storage = game:GetService("ReplicatedStorage"):FindFirstChild("BytenetStorage")
-        networking = storage and storage:FindFirstChild("Networking")
-        if not networking then task.wait(0.5) end
-    until networking or tick() > deadline
-    if networking then
-        local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
-        if ok and parsed and parsed.packets then
-            for name, byteNum in pairs(parsed.packets) do
-                buffers[name] = string.char(byteNum)
-            end
-            if buffers["bytenet_use"] then
-                buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
-            end
-            if buffers["bytenet_findBall"] then
-                buffers["grabball"] = buffers["bytenet_findBall"]
-            end
-        end
-    end
-end
 
 local link = "https://files.catbox.moe/u1yzdo.mp3"
 local filename = "lokiTheme.mp3"
@@ -102,7 +104,7 @@ local function DoCDVisual(len, name)
     end
 end
 
-local remote = ReplicatedStorage:WaitForChild("ByteNetReliable")
+local remote = ReplicatedStorage:WaitForChild("Network"):WaitForChild("NetworkSystem"):WaitForChild("Reliable")
 
 local function TeleportShot(char, shootDelay)
     local root = char.HumanoidRootPart
@@ -134,8 +136,8 @@ local function TeleportShot(char, shootDelay)
         root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0) * CFrame.new(0, 0, -8.823999)
         task.wait(0.2)
         
-        remote:FireServer(buffer.fromstring(buffers["base"]), {
-            {"kick", 29, false, root.CFrame.LookVector * 1e19, "basicShot"}
+        NET:FireServer(buffer.fromstring(buffers["base"]), {
+            {"kick", 29, false, root.CFrame.LookVector}
         })
         
         task.wait(0.001)
@@ -211,7 +213,7 @@ local function Skill2(char)
         root.AssemblyLinearVelocity = Vector3.zero
         
         task.wait(0.05)
-        remote:FireServer(buffer.fromstring(buffers["grabball"]))
+        NET:FireServer(buffer.fromstring(buffers["grabball"]))
         task.wait(0.05)
         
         if HasBall() then
@@ -352,7 +354,7 @@ local function Skill5(char)
         root.AssemblyLinearVelocity = Vector3.zero
         
         task.wait(0.05)
-        remote:FireServer(buffer.fromstring(buffers["grabball"]))
+        NET:FireServer(buffer.fromstring(buffers["grabball"]))
         task.wait(0.05)
         
         if HasBall() then
@@ -421,7 +423,7 @@ local function LokiFlow(char)
     
     replication.LokiFlow(char)
     
-    remote:FireServer(buffer.fromstring(buffers["base"]), { { "tackle" } })
+    NET:FireServer(buffer.fromstring(buffers["base"]), { { "tackle" } })
     
     task.delay(8, function()
         char.state.stun.Value = false
@@ -472,13 +474,15 @@ local function SetUp(char)
     hotbar.Backpack.Hotbar.skill4.Base.ToolName.Text = "Lightspeed Kick"
     hotbar.Backpack.Hotbar.skill5.Base.ToolName.Text = "Is this Okay?"
     
-    hotbar.MagicHealth.Awakening.Text = "God of Mischief"
-    hotbar.MagicHealth.TextLabel.Visible = true
-    hotbar.MagicHealth.TextLabel.Text = "Loki"
-    hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(123, 50, 168))
-    }
+    pcall(function()
+        hotbar.MagicHealth.Awakening.Text = "God of Mischief"
+        hotbar.MagicHealth.TextLabel.Visible = true
+        hotbar.MagicHealth.TextLabel.Text = "Loki"
+        hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(123, 50, 168))
+        }
+    end)
     
     plr.Character:GetAttributeChangedSignal("FlowActive"):Connect(function()
         if plr.Character:GetAttribute("FlowActive") == true then
@@ -566,4 +570,3 @@ game.StarterGui:SetCore("SendNotification", {
 })
 
 print("Loki Moveset loaded!")
-
