@@ -294,7 +294,7 @@ local function UnlimitedFlexworks()
     plr:SetAttribute("style", "KJ")
     humanoid.WalkSpeed = 0
     root.Anchored = true
-    root.CFrame = root.CFrame + Vector3.new(0, 30, 0)
+    root.CFrame = root.CFrame + Vector3.new(0, 60, 0)
 
     pcall(function() humanoid:LoadAnimation(kj.Animation):Play() end)
     pcall(function() require(rep.client.replication).KJUnlimitedFlexworks(char) end)
