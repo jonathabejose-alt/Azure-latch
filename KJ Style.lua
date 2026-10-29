@@ -1,52 +1,42 @@
+local buffers = setmetatable({}, {__index = function(_, k) return k end})
+
+NET = (function()
+    local Packets = require(game:GetService("ReplicatedStorage"):WaitForChild("packets"))
+    local warned = {}
+    local function warnOnce(key, message)
+        if not warned[key] then warned[key] = true; warn("[Network Shim] " .. message) end
+    end
+    local function convertToString(inputData)
+        if type(inputData) == "string" then return inputData end
+        if typeof(inputData) == "buffer" then return buffer.tostring(inputData) end
+    end
+    local netShim = {}
+    function netShim.FireServer(_, dataBuffer, actionsList)
+        local bufferType = convertToString(dataBuffer)
+        if bufferType == "base" then
+            if type(actionsList) ~= "table" then return end
+            for _, primaryAction in ipairs(actionsList) do
+                if type(primaryAction) == "table" then
+                    pcall(function() Packets.bytenet_use.send(primaryAction) end)
+                end
+            end
+        elseif bufferType == "grabball" then
+            pcall(function() Packets.bytenet_findBall.send(actionsList) end)
+        end
+    end
+    netShim.fireServer = netShim.FireServer
+    return netShim
+end)()
 workspace.map.gkbarriar.Abarriar.CanCollide = false
 workspace.map.gkbarriar.Bbarriar.CanCollide = false
 workspace.map.Agoal.CanCollide = false
 workspace.map.Bgoal.CanCollide = false
 
 local ReplicatedStorage = game.ReplicatedStorage
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-
-local buffers = {}
-
-do
-	local networking = nil
-	local deadline = tick() + 15
-	repeat
-		local storage = ReplicatedStorage:FindFirstChild("BytenetStorage")
-		networking = storage and storage:FindFirstChild("Networking")
-		if not networking then task.wait(0.5) end
-	until networking or tick() > deadline
-	if networking then
-		local ok, parsed = pcall(function() return HttpService:JSONDecode(networking.Value) end)
-		if ok and parsed and parsed.packets then
-			for name, byteNum in pairs(parsed.packets) do
-				buffers[name] = string.char(byteNum)
-			end
-			if buffers["bytenet_use"] then
-				buffers["base"] = buffers["bytenet_use"] .. string.char(1) .. string.char(0)
-			end
-			if buffers["bytenet_findBall"] then
-				buffers["grabball"] = buffers["bytenet_findBall"]
-			end
-			local old = Lighting:FindFirstChild("BUFFERSTRINGS")
-			if old then old:Destroy() end
-			local folder = Instance.new("Folder")
-			folder.Name = "BUFFERSTRINGS"
-			folder.Parent = Lighting
-			for name, val in pairs(buffers) do
-				local sv = Instance.new("StringValue")
-				sv.Name = name
-				sv.Value = val
-				sv.Parent = folder
-			end
-		end
-	end
-end
 
 local plr = game.Players.LocalPlayer
 local rep = game:GetService("ReplicatedStorage")
-local remote = rep:WaitForChild("ByteNetReliable")
+local remote = rep:WaitForChild("Network"):WaitForChild("NetworkSystem"):WaitForChild("Reliable")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -141,7 +131,7 @@ local function Handball()
     track.Priority = Enum.AnimationPriority.Action4
     track:Play()
     task.delay(1, function() pcall(function() KJVFX.KJHandball(char) end) end)
-    task.delay(0.3, function() remote:FireServer(buffer.fromstring(buffers["base"]), {{"skill2"}}) end)
+    task.delay(0.3, function() NET:FireServer(buffer.fromstring(buffers["base"]), {{"skill2"}}) end)
 end
 
 local function SignatureDribble()
@@ -187,7 +177,7 @@ local function StoicBomb()
     if getgenv().HBM and type(getgenv().HBM) == "number" then
         local hbmSize = getgenv().HBM
         if dist <= hbmSize then
-            remote:FireServer(buffer.fromstring(buffers["grabball"]))
+            NET:FireServer(buffer.fromstring(buffers["grabball"]))
             task.wait(0.15)
             if HasBall() then
                 grabbedByHBM = true
@@ -212,7 +202,7 @@ local function StoicBomb()
             root.AssemblyLinearVelocity = Vector3.zero
 
             task.wait(0.1)
-            remote:FireServer(buffer.fromstring(buffers["grabball"]))
+            NET:FireServer(buffer.fromstring(buffers["grabball"]))
             task.wait(0.05)
 
             if HasBall() then
@@ -328,7 +318,7 @@ local function UnlimitedFlexworks()
         root.CFrame = goal.CFrame
         repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
         task.wait(0.2)
-        remote:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0), "basicShot"}})
+        NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
     end
 
     humanoid.WalkSpeed = 40
@@ -411,11 +401,13 @@ local function Setup(char)
         buttons["skill"..i].Visible = true
     end
 
-    hotbar.MagicHealth.Awakening.Text = "20 Series"
-    hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(168, 0, 0))
-    }
+    pcall(function()
+        hotbar.MagicHealth.Awakening.Text = "20 Series"
+        hotbar.MagicHealth.Health.Frame.UIGradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(168, 0, 0))
+        }
+    end)
 
     char:GetAttributeChangedSignal("FlowActive"):Connect(function()
         if char:GetAttribute("FlowActive") == true and not stopped then
