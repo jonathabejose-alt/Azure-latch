@@ -299,11 +299,12 @@ local function UnlimitedFlexworks()
     pcall(function() humanoid:LoadAnimation(kj.Animation):Play() end)
     pcall(function() require(rep.client.replication).KJUnlimitedFlexworks(char) end)
 
-    task.wait(31)
+    task.wait(29)
 
     root.CFrame = root.CFrame - Vector3.new(0, 30, 0)
     root.Anchored = false
 
+    local originalCFrame = root.CFrame
     local goal = plr.Team.Name == "A" and workspace.map.Bgoal or workspace.map.Agoal
     local barriar = plr.Team.Name == "A" and workspace.map.gkbarriar.Bbarriar or workspace.map.gkbarriar.Abarriar
 
@@ -317,8 +318,9 @@ local function UnlimitedFlexworks()
     if goal and HasBall() then
         root.CFrame = goal.CFrame
         repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
-        task.wait(0.2)
+        task.wait(0.1)
         NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
+        root.CFrame = originalCFrame
     end
 
     humanoid.WalkSpeed = 40
