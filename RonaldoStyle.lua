@@ -409,7 +409,7 @@ UserInputService.InputBegan:Connect(function(input, bg)
         char.state.stun.Value = true
         humanoid.WalkSpeed = 0
         root.Anchored = true
-        root.CFrame = root.CFrame + Vector3.new(0, 30, 0)
+        root.CFrame = root.CFrame + Vector3.new(0, 90, 0)
         local anim = Instance.new("Animation")
         anim.AnimationId = "rbxassetid://117697415418770"
         local track = humanoid:LoadAnimation(anim)
@@ -424,11 +424,10 @@ UserInputService.InputBegan:Connect(function(input, bg)
         if barriar then barriar.CanCollide = false end
         if goal then goal.CanCollide = false end
         if goal and hasball() then
-            root.CFrame = goal.CFrame
-            repeat task.wait() until (root.Position - goal.Position).Magnitude < 5
-            task.wait(0.2)
-            NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 20, false, vector.create(0, 1, 0)}})
-        end
+            root.CFrame = goal.CFrame 
+            task.wait("0.1")
+    NET:FireServer(buffer.fromstring(buffers["base"]), {{"kick", 40, false, vector.create(0, 1, 0)}})
+end
         humanoid.WalkSpeed = 40
         char.state.stun.Value = false
         plr:SetAttribute("style", savedStyle)
