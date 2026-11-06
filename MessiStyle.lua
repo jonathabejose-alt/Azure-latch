@@ -552,6 +552,7 @@ local function SuperPass()
     local humanoid = char.Humanoid
     local closestTeammate = nil
     local shortestDistance = 180
+
     for _, p in ipairs(Players:GetPlayers()) do
         if p == plr then continue end
         if not p.Character then continue end
@@ -565,31 +566,39 @@ local function SuperPass()
             closestTeammate = p
         end
     end
+
     if not closestTeammate then
         CancelMove()
         return
     end
+
     CancelMove()
     DoCD("skill3", 7)
-    local targetRoot = closestTeammate.Character.HumanoidRootPart
+    
+    local targetRoot = closestTeammate.Character and closestTeammate.Character:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
+
     local distance = shortestDistance
     for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do track:Stop(0) end
     humanoid:LoadAnimation(anims.SuperPass):Play()
     pcall(function() messiVFX.messiPassVFX(char) end)
+
     if sounds:FindFirstChild("Perfect Pass") then
         local s = sounds["Perfect Pass"]:Clone()
         s.Parent = root
         s:Play()
         Debris:AddItem(s, 3)
     end
+
     task.wait(0.3)
+
     local direction = (targetRoot.Position - root.Position).Unit
     local kickDir = Vector3.new(direction.X, 0.18, direction.Z).Unit
     local power = math.clamp(distance / 1.4, 18, 95)
-    remote:FireServer(
-        buffer.fromstring(buffers["base"]),
-        { {"kick", power, true, Vector3.new(kickDir.X, kickDir.Y, kickDir.Z)} }
-    )
+
+    NET:FireServer(buffer.fromstring(buffers["base"]), {
+        {"kick", power, false, kickDir}
+    })
 end
 
 local function Intercept()
