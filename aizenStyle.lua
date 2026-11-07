@@ -296,12 +296,13 @@ local function AizenAwaken()
     local root = char.HumanoidRootPart
     local savedStyle = plr:GetAttribute("style")
 
-    root.Anchored = true
+    
     Stun(21, true)
     plr:SetAttribute("style", "aizen")
 
     TweenService:Create(humanoid, TweenInfo.new(0.1, Enum.EasingStyle.Cubic), {HipHeight = 25}):Play()
-
+    task.wait(0.1)
+root.Anchored = true
     task.delay(0.1, function()
         task.spawn(function()
             pcall(function()
